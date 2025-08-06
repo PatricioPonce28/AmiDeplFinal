@@ -313,7 +313,7 @@ const crearAporte = async (req, res) => {
       currency: "usd",
       payment_method: paymentMethodId,
       confirm: true,
-      return_url: "http://localhost:5173/user/dashboard", // <--- Con esta ruta
+      return_url: "https://amikunaback.vercel.app/user/dashboard", // <--- Con esta ruta
     });
 
     // 2. Guardar en la base de datos
