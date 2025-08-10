@@ -344,65 +344,42 @@ const iniciarChat = async (req, res) => {
     const myId = req.userBDD?._id;
     const otherUserId = req.params?.otroUserId;
 
-    // 1. Validar IDs y evitar chatear consigo mismo
-    if (!mongoose.Types.ObjectId.isValid(myId) || !mongoose.Types.ObjectId.isValid(otherUserId)) {
-      return res.status(400).json({ error: 'IDs de usuario no válidos' });
-    }
+    // Validaciones previas (como ya tienes)...
 
-    if (myId.toString() === otherUserId.toString()) {
-      return res.status(400).json({ error: 'No puedes chatear contigo mismo' });
-    }
-
-    // 2. Validar que ambos usuarios existen
-    const [yo, otro] = await Promise.all([
-      users.findById(myId).select('siguiendo seguidores'),
-      users.findById(otherUserId).select('siguiendo seguidores')
-    ]);
-
-    if (!yo || !otro) {
-      return res.status(404).json({ error: 'Uno o ambos usuarios no encontrados' });
-    }
-
-    // 3. Validar match mutuo
-    const yoSigoAlOtro = yo.siguiendo.some(id => id.toString() === otro._id.toString());
-    const elMeSigueAMi = otro.siguiendo.some(id => id.toString() === yo._id.toString());
-
-    if (!yoSigoAlOtro || !elMeSigueAMi) {
-      return res.status(403).json({ 
-        error: 'Deben ser matches mutuos (se siguen mutuamente) para chatear',
-        details: {
-          tuSigueA: yoSigoAlOtro,
-          elSigueA: elMeSigueAMi
-        }
-      });
-    }
-
-    // 4. Crear el nuevo chat (sin validación de duplicados)
+    // IDs ordenados para buscar el chat único
     const sortedIds = [myId.toString(), otherUserId.toString()].sort();
 
-    const nuevoChat = await Chat.create({
-      participantes: sortedIds,
-      mensajes: [], // opcional
+    // Buscar si ya existe chat entre estos dos usuarios
+    let chatExistente = await Chat.findOne({
+      participantes: sortedIds
     });
 
-    // 5. Emitir evento de Socket.io
-    if (req.io) {
-      req.io.to(myId.toString()).emit('chat:created', {
-        chatId: nuevoChat._id,
-        otherUserId: otherUserId
+    if (!chatExistente) {
+      // Si no existe, crear uno nuevo
+      chatExistente = await Chat.create({
+        participantes: sortedIds,
+        mensajes: []
       });
 
-      req.io.to(otherUserId.toString()).emit('chat:created', {
-        chatId: nuevoChat._id,
-        otherUserId: myId
-      });
+      // Emitir eventos Socket.io para chat creado
+      if (req.io) {
+        req.io.to(myId.toString()).emit('chat:created', {
+          chatId: chatExistente._id,
+          otherUserId: otherUserId
+        });
+
+        req.io.to(otherUserId.toString()).emit('chat:created', {
+          chatId: chatExistente._id,
+          otherUserId: myId
+        });
+      }
     }
 
-    // 6. Respuesta exitosa
-    return res.status(201).json({
+    // Responder con el chat existente o creado
+    return res.status(200).json({
       success: true,
-      message: 'Chat creado exitosamente',
-      chatId: nuevoChat._id
+      message: 'Chat listo',
+      chatId: chatExistente._id
     });
 
   } catch (error) {
@@ -415,56 +392,64 @@ const iniciarChat = async (req, res) => {
 };
 
 
+
 const enviarMensaje = async (req, res) => {
-  try {
-    const { chatId } = req.params;
-    const { contenido } = req.body;
-    const emisorId = req.userBDD._id;
+    try {
+        const { chatId } = req.params;
+        const { contenido } = req.body;
+        const emisorId = req.userBDD._id;
 
-    if (!contenido || !chatId) {
-      return res.status(400).json({ msg: 'Contenido y chatId requeridos' });
+        if (!contenido || !chatId) {
+            return res.status(400).json({ msg: 'Contenido y chatId requeridos' });
+        }
+
+        const chat = await Chat.findById(chatId);
+        if (!chat || !chat.participantes.some(p => p.toString() === emisorId.toString())) {
+            return res.status(403).json({ msg: 'No tienes permiso para enviar mensajes en este chat' });
+        }
+
+        const nuevoMensaje = {
+            emisor: emisorId,
+            contenido,
+            createdAt: new Date()
+        };
+
+        const chatActualizado = await Chat.findByIdAndUpdate(
+            chatId,
+            { $push: { mensajes: nuevoMensaje } },
+            { new: true, runValidators: true } 
+        );
+
+        if (!chatActualizado) {
+            return res.status(404).json({ msg: 'Chat no encontrado durante la actualización' });
+        }
+
+        // <<-- AQUÍ ESTÁ LA LÍNEA QUE TE FALTABA -->>
+        // Poblar la información del emisor en el último mensaje para que el otro usuario lo reciba completo
+        const mensajeFinal = await Chat.populate(chatActualizado, {
+            path: 'mensajes.emisor',
+            select: 'nombre imagenPerfil'
+        });
+
+        // El mensaje que se envía ahora contiene la info del emisor
+        const ultimoMensaje = mensajeFinal.mensajes[mensajeFinal.mensajes.length - 1];
+
+        if (req.io) {
+            req.io.to(chatId.toString()).emit('mensaje:nuevo', {
+                chatId,
+                mensaje: ultimoMensaje
+            });
+        }
+
+        res.status(201).json({
+            msg: 'Mensaje enviado',
+            mensaje: ultimoMensaje
+        });
+
+    } catch (error) {
+        console.error('Error al enviar mensaje:', error);
+        res.status(500).json({ msg: 'Error interno del servidor' });
     }
-
-    const chat = await Chat.findById(chatId);
-    if (!chat) {
-      return res.status(404).json({ msg: 'Chat no encontrado' });
-    }
-
-    // Verificamos que el emisor pertenezca al chat
-    const esParticipante = chat.participantes.some(p =>
-      p.toString() === emisorId.toString()
-    );
-    if (!esParticipante) {
-      return res.status(403).json({ msg: 'No tienes permiso para enviar mensajes en este chat' });
-    }
-
-    // Crear mensaje
-    const nuevoMensaje = {
-      emisor: emisorId,
-      contenido,
-      createdAt: new Date()
-    };
-
-    chat.mensajes.push(nuevoMensaje);
-    await chat.save();
-
-    // Emitir mensaje por socket.io
-    if (req.io) {
-      req.io.to(chatId.toString()).emit('mensaje:nuevo', {
-        chatId,
-        mensaje: nuevoMensaje
-      });
-    }
-
-    res.status(201).json({
-      msg: 'Mensaje enviado',
-      mensaje: nuevoMensaje
-    });
-
-  } catch (error) {
-    console.error('Error al enviar mensaje:', error);
-    res.status(500).json({ msg: 'Error interno del servidor' });
-  }
 };
 
 

@@ -8,7 +8,7 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "http://localhost:5173", // Ajusta según tu frontend
+      origin: process.env.URL_FRONTEND, // Ajusta según tu frontend
       methods: ["GET", "POST"]
     }
   });
