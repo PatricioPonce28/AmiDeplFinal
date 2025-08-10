@@ -8,7 +8,10 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "https://amikunaback.vercel.app/",
+        origin: [
+    "http://localhost:5173",
+    "https://amikunaback.vercel.app"
+  ],
       methods: ["GET", "POST"]
     }
   });
