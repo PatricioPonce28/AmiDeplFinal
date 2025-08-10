@@ -8,7 +8,7 @@ let io;
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.URL_FRONTEND, // Ajusta según tu frontend
+      origin: "https://amikunaback.vercel.app",
       methods: ["GET", "POST"]
     }
   });
