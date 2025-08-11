@@ -21,12 +21,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const corsOptions = {
-  origin: process.env.URL_FRONTEND, 
-  credentials: true                 
-}
-app.use(cors(corsOptions)) 
-
 app.use(fileUpload({
     useTempFiles : true,
     tempFileDir : '/tmp/'
@@ -35,7 +29,12 @@ app.use(fileUpload({
 // Configuraciones 
 app.set(`port`, process.env.PORT || 3000)
 
-app.use(cors()) // Middlewares 
+// Configurar CORS usando variable de entorno
+const corsOptions = {
+  origin: process.env.URL_FRONTEND, // URL exacta del frontend
+  credentials: true,                // Permitir cookies/sesión
+}
+app.use(cors(corsOptions)) // Middlewares 
 
 // Middleware 
 app.use(express.json())
@@ -69,8 +68,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Rutas que no existen 
 app.use((req, res)=>{res.status(404).send("Endpoint no encontrado")})
 
-
 // Exportar la instancia de express
-export default app 
+export default app
 
 

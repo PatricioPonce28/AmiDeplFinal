@@ -256,14 +256,27 @@ const listarMatches = async (req, res) => {
 
 const obtenerEventos = async (req, res) => {
   try {
-    const eventos = await Evento.find().select('-id -_v -createdAt -updatedAt -creador');
+    const eventosRaw = await Evento.find({ activo: true })
+      //  populamos ambos arrays
+      .populate('asistentes', 'nombre apellido')
+      .populate('noAsistiran', 'nombre apellido')
       
+      .select("-__v -createdAt -updatedAt -creador")
+      .lean();
+
+    const eventos = eventosRaw.map(evento => ({
+      ...evento,
+      _id: evento._id.toString(),
+    }));
+     
     res.status(200).json(eventos);
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al obtener eventos" });
   }
 };
+
+
 
 const confirmarAsistencia = async (req, res) => {
   try {
@@ -468,7 +481,6 @@ const enviarMensaje = async (req, res) => {
         res.status(500).json({ msg: 'Error interno del servidor' });
     }
 };
-
 
 const obtenerMensajes = async (req, res) => {
   try {
