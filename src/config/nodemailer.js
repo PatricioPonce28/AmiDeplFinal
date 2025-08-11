@@ -58,7 +58,7 @@ const sendMailToRegister = (userMail, token) => {
                     
                     <!-- Botón de confirmación -->
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.URL_FRONTEND}confirmar/${token}" 
+                        <a href="${process.env.URL_FRONTEND}/confirmar/${token}" 
                            style="display: inline-block; background: linear-gradient(135deg, #ff6b6b, #ff4757); color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 18px; box-shadow: 0 8px 20px rgba(255, 71, 87, 0.4); transition: all 0.3s ease; border: 3px solid transparent;">
                             ✨ Confirmar mi cuenta ✨
                         </a>
@@ -150,7 +150,7 @@ const sendMailToRecoveryPassword = async(userMail,token)=>{
                     
                     <!-- Botón de recuperación -->
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="${process.env.URL_FRONTEND}recuperarpassword/${token}"
+                        <a href="${process.env.URL_FRONTEND}/recuperarpassword/${token}"
                                   style="display: inline-block; background: linear-gradient(135deg, #ff6b6b, #ff4757); color: white; padding: 15px 40px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 18px; box-shadow: 0 8px 20px rgba(255, 71, 87, 0.4); transition: all 0.3s ease; border: 3px solid transparent;">
                             🔑 Restablecer mi contraseña 🔑
                         </a>
