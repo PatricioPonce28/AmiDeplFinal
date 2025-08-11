@@ -153,6 +153,13 @@ const listarPotencialesMatches = async (req, res) => {
   .select("-password -token -__v -updatedAt")
   .lean();
 
+   // Filtrar perfiles que ya sean match
+  perfiles = perfiles.filter(perfil => {
+    const yoSigo = yo.siguiendo?.some(id => id.toString() === perfil._id.toString());
+    const elMeSigue = perfil.siguiendo?.some(id => id.toString() === yo._id.toString());
+    return !(yoSigo && elMeSigue); 
+  });
+
   return res.status(200).json(perfiles);
 };
 
