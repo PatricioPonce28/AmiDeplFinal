@@ -398,8 +398,15 @@ const actualizarEvento = async (req, res) => {
 
 const obtenerEventosAdmin = async (req, res) => {
   try {
-    const eventos = await Evento.find({ activo: true })
-      .select('-_id -__v -createdAt -updatedAt -creador');
+    const eventosRaw = await Evento.find({ activo: true }).select(
+      "-__v -createdAt -updatedAt -creador"
+    ).lean();
+
+    // Transformamos para asegurar que _id es string
+    const eventos = eventosRaw.map(evento => ({
+      ...evento,
+      _id: evento._id.toString(),
+    }));
 
     res.status(200).json(eventos);
   } catch (error) {
@@ -407,6 +414,7 @@ const obtenerEventosAdmin = async (req, res) => {
     res.status(500).json({ msg: "Error al obtener eventos" });
   }
 };
+
 
 
 const eliminarEvento = async (req, res) => {

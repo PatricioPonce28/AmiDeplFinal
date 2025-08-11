@@ -21,6 +21,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+const corsOptions = {
+  origin: process.env.URL_FRONTEND, 
+  credentials: true                 
+}
+app.use(cors(corsOptions)) 
+
 app.use(fileUpload({
     useTempFiles : true,
     tempFileDir : '/tmp/'

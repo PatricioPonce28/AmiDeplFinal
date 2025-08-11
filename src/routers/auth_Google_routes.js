@@ -11,8 +11,8 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 router.get('/google/callback',
   passport.authenticate('google', { failureRedirect: '/login-failed' }),
   (req, res) => {
-    // Si quieres, redirige a tu frontend o devuelve un JSON
-    res.redirect('/auth/success');
+    // Redirigir al frontend usando variable de entorno
+    res.redirect(`${process.env.URL_FRONTEND}/auth/google/success`);
   }
 );
 

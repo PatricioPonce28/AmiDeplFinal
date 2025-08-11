@@ -256,7 +256,7 @@ const listarMatches = async (req, res) => {
 
 const obtenerEventos = async (req, res) => {
   try {
-    const eventos = await Evento.find().select('-_id -__v -createdAt -updatedAt -creador');
+    const eventos = await Evento.find().select('-id -_v -createdAt -updatedAt -creador');
       
     res.status(200).json(eventos);
   } catch (error) {
@@ -268,6 +268,11 @@ const obtenerEventos = async (req, res) => {
 const confirmarAsistencia = async (req, res) => {
   try {
     const { idEvento } = req.params;
+
+    if (!idEvento || !mongoose.Types.ObjectId.isValid(idEvento)) {
+      return res.status(400).json({ msg: "ID de evento inválido o no recibido" });
+    }
+
     const userId = req.userBDD._id;
 
     const evento = await Evento.findById(idEvento);
@@ -289,6 +294,11 @@ const confirmarAsistencia = async (req, res) => {
 const rechazarAsistencia = async (req, res) => {
   try {
     const { idEvento } = req.params;
+
+    if (!idEvento || !mongoose.Types.ObjectId.isValid(idEvento)) {
+      return res.status(400).json({ msg: "ID de evento inválido o no recibido" });
+    }
+
     const userId = req.userBDD._id;
 
     const evento = await Evento.findById(idEvento);
