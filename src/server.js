@@ -14,6 +14,9 @@ import authRoutes from './routers/auth_Google_routes.js';
 
 // Inicializaciones 
 const app = express()
+
+app.set('trust proxy', 1);
+
 dotenv.config()
 cloudinary.config({ 
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -51,7 +54,6 @@ app.use(session({
   }
 }));
 
-
 // Inicializar passport
 app.use(passport.initialize());
 app.use(passport.session());
@@ -76,5 +78,3 @@ app.use((req, res)=>{res.status(404).send("Endpoint no encontrado")})
 
 // Exportar la instancia de express
 export default app
-
-
