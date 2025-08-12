@@ -19,17 +19,18 @@ const completarPerfil = async (req, res) => {
   try {
     const id = req.userBDD._id;
 
-    // Extraer y normalizar datos
+    // Extraer y normalizar datos (ajustado para FormData)
     const nombre = req.body.nombre?.trim();
     const biografia = req.body.biografia?.trim();
     const intereses = req.body.intereses?.split(',').map(i => i.trim()) || [];
     const genero = req.body.genero?.toLowerCase();
     const orientacion = req.body.orientacion?.toLowerCase();
     const fechaNacimiento = req.body.fechaNacimiento;
-    const ubicacion = JSON.parse(req.body.ubicacion || '{}');
+    const ciudad = req.body['ubicacion[ciudad]']?.trim(); // EXTRAÍDO DE FORMDATA
+    const pais = req.body['ubicacion[pais]']?.trim(); // EXTRAÍDO DE FORMDATA
 
     // Validar campos obligatorios
-    if (!nombre || !biografia || !fechaNacimiento || !genero || !orientacion || intereses.length === 0) {
+    if (!nombre || !biografia || !fechaNacimiento || !genero || !orientacion || intereses.length === 0 || !ciudad || !pais) {
       return res.status(400).json({ msg: "Por favor, completa todos los campos obligatorios." });
     }
 
@@ -44,14 +45,9 @@ const completarPerfil = async (req, res) => {
         folder: 'Estudiantes'
       });
       usuario.imagenPerfil = resultado.secure_url;
-      await fs.unlink(file); // borrar imagen temporal
+      // await fs.unlink(file); // borrar imagen temporal (comentado porque a veces da problemas)
     }
-if (usuario.imagenPerfil) {
-    const rutaAnterior = path.join(process.cwd(), usuario.imagenPerfil);
-    if (fs.existsSync(rutaAnterior)) {
-      await fs.unlink(rutaAnterior);
-    }
-  }
+
     // Actualizar campos
     usuario.nombre = nombre;
     usuario.biografia = biografia;
@@ -59,7 +55,8 @@ if (usuario.imagenPerfil) {
     usuario.genero = genero;
     usuario.orientacion = orientacion;
     usuario.fechaNacimiento = fechaNacimiento;
-    usuario.ubicacion = ubicacion;
+    // Asignar la ubicación correctamente
+    usuario.ubicacion = { ciudad, pais };
 
     // Por si no están inicializados
     usuario.activo = true;
@@ -69,6 +66,9 @@ if (usuario.imagenPerfil) {
     usuario.imagenesGaleria = usuario.imagenesGaleria || [];
 
     await usuario.save();
+
+    // AÑADIDO: Actualizar la sesión con el usuario recién guardado
+    req.userBDD = usuario;
 
     // Limpiar respuesta
     const { password, token, __v, createdAt, updatedAt, ...perfil } = usuario.toObject();
@@ -83,6 +83,7 @@ if (usuario.imagenPerfil) {
     res.status(500).json({ msg: "Error en el servidor al actualizar el perfil" });
   }
 };
+
 
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY )
@@ -136,31 +137,52 @@ const obtenerPerfilCompleto = async (req, res) => {
 
 
 const listarPotencialesMatches = async (req, res) => {
-  const yo = req.userBDD;
+  try {
+    const yo = req.userBDD;
 
-  let filtroGenero = {};
-  if (yo.genero === "hombre")  filtroGenero.genero = "mujer";
-  if (yo.genero === "mujer")   filtroGenero.genero = "hombre";
-  if (yo.genero === "otro")    filtroGenero.genero = "otro";
+    // Verificar autenticación
+    if (!yo) {
+      return res.status(401).json({ msg: "Usuario no autenticado" });
+    }
 
-  const perfiles = await users.find({
-    _id: { $ne: yo._id },            // que no sea yo
-    ...filtroGenero,
-    imagenPerfil: { $ne: "" },       // tiene foto
-    biografia:  { $ne: "" },         // tiene bio
-    intereses: { $exists: true, $not: { $size: 0 } }
-  })
-  .select("-password -token -__v -updatedAt")
-  .lean();
+    // Filtrar por género opuesto (o mismo si es 'otro')
+    let filtroGenero = {};
+    if (yo.genero === "hombre") filtroGenero.genero = "mujer";
+    if (yo.genero === "mujer") filtroGenero.genero = "hombre";
+    if (yo.genero === "otro") filtroGenero.genero = "otro";
 
-   // Filtrar perfiles que ya sean match
-  perfiles = perfiles.filter(perfil => {
-    const yoSigo = yo.siguiendo?.some(id => id.toString() === perfil._id.toString());
-    const elMeSigue = perfil.siguiendo?.some(id => id.toString() === yo._id.toString());
-    return !(yoSigo && elMeSigue); 
-  });
+    // Buscar perfiles que cumplan los requisitos
+    let perfiles = await users.find({
+      _id: { $ne: yo._id }, // que no sea yo
+      ...filtroGenero,
+      imagenPerfil: { $ne: "" }, // tiene foto
+      biografia: { $ne: "" }, // tiene bio
+      intereses: { $exists: true, $not: { $size: 0 } } // tiene intereses
+    })
+      .select("-password -token -__v -updatedAt")
+      .lean();
 
-  return res.status(200).json(perfiles);
+    // Filtrar perfiles que ya sean match
+    perfiles = perfiles.filter(perfil => {
+      const yoSigo = Array.isArray(yo.siguiendo) &&
+                     yo.siguiendo.some(id => id.toString() === perfil._id.toString());
+
+      const elMeSigue = Array.isArray(perfil.siguiendo) &&
+                        perfil.siguiendo.some(id => id.toString() === yo._id.toString());
+
+      // Incluir solo si NO hay match mutuo
+      return !(yoSigo && elMeSigue);
+    });
+
+    return res.status(200).json(perfiles);
+
+  } catch (error) {
+    console.error("Error en listarPotencialesMatches:", error);
+    return res.status(500).json({
+      msg: "Error interno del servidor al listar matches",
+      error: error.message
+    });
+  }
 };
 
 // Cambio documentar
