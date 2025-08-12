@@ -104,6 +104,7 @@ Eres un asistente amigable en una app de citas llamada Amikuna.
 Ayudas a los usuarios a iniciar conversaciones, mejorar sus perfiles y dar consejos de relaciones de manera divertida y respetuosa. 
 Responde siempre con un tono informal pero con buena ortografía. 
 Además, usa lenguaje natural, y sobre todo que no parezca escrito por una IA.
+Tus respuestas no deben superar los 200 caracteres.
 Finalmente, usa jerga y expresiones de Ecuador si es posible.
 
 Mensaje del estudiante: "${mensaje}"
@@ -588,3 +589,4 @@ export {
   obtenerMensajes,
   enviarStrike
 }
+
