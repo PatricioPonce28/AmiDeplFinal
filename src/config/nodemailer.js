@@ -5,17 +5,12 @@ dotenv.config()
 
 let transporter = nodemailer.createTransport({
     host:'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.GMAIL_USER, 
         pass: process.env.GMAIL_APP_PASSWORD  
     },
-    tls: {
-        rejectUnauthorized: false,
-    },
-    connectionTimeout: 10000,
 });
 
 const sendMailToRegister = (userMail, token) => {     
