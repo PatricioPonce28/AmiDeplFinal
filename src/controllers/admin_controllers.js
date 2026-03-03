@@ -44,8 +44,11 @@ const registro = async (req, res) => {
   await newUser.save();
 
   // Enviar correo
+ try {
   await sendMailToRegister(email, newUser.token);
-
+} catch (error) {
+  console.error("Error enviando correo:", error.message);
+}
   return res
     .status(200)
     .json({ msg: "Revisa tu correo electrónico para confirmar tu cuenta" });
