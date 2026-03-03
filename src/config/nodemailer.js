@@ -14,7 +14,8 @@ let transporter = nodemailer.createTransport({
     },
     tls: {
         rejectUnauthorized: false,
-    }
+    },
+    connectionTimeout: 10000,
 });
 
 const sendMailToRegister = (userMail, token) => {     

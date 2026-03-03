@@ -63,8 +63,6 @@ const confirmarMail = async (req, res) => {
 };
 
 const recuperarPassword = async (req, res) => {
-  console.log("USER:", process.env.GMAIL_USER);
-  console.log("PASS:", process.env.GMAIL_APP_PASSWORD ? "EXISTE" : "NO EXISTE");
   const { email } = req.body;
   if (Object.values(req.body).includes(""))
     return res
