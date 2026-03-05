@@ -3,6 +3,7 @@ import users from '../models/users.js';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs-extra';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generarConRetry, getModel } from "../helpers/gemini.helper.js";
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Evento from '../models/Evento.js';
@@ -84,10 +85,6 @@ const completarPerfil = async (req, res) => {
   }
 };
 
-
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY )
-
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
@@ -95,35 +92,31 @@ const chatEstudiante = async (req, res) => {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
     }
 
-    // Obtiene el modelo generativo
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getModel();
 
-    // Define el prompt completo
     const prompt = `
 Eres un asistente amigable en una app de citas llamada Amikuna. 
 Ayudas a los usuarios a iniciar conversaciones, mejorar sus perfiles y dar consejos de relaciones de manera divertida y respetuosa. 
 Responde siempre con un tono informal pero con buena ortografía. 
-Además, usa lenguaje natural, y sobre todo que no parezca escrito por una IA.
+Usa lenguaje natural, que no parezca escrito por una IA.
 Tus respuestas no deben superar los 200 caracteres.
-Finalmente, usa jerga y expresiones de Ecuador si es posible.
+Usa jerga y expresiones de Ecuador si es posible.
 
-Mensaje del estudiante: "${mensaje}"
+Mensaje del usuario: "${mensaje}"
 `;
 
-    // Generar respuesta
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const texto = response.text();
-
+    const texto = await generarConRetry(model, prompt);
     res.status(200).json({ respuesta: texto });
+
   } catch (error) {
     console.error("Error con Gemini:", error);
-    res.status(500).json({ 
-      msg: "Error interno al consultar",
-      error: error.message 
-    });
+    if (error.status === 429) {
+      return res.status(429).json({ msg: "Límite alcanzado, intenta en unos segundos." });
+    }
+    res.status(500).json({ msg: "Error interno al consultar", error: error.message });
   }
 };
+
 const obtenerPerfilCompleto = async (req, res) => {
   try {
     const usuario = await users.findById(req.userBDD._id).select('-password -token -__v -createdAt -updatedAt');
