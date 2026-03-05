@@ -67,6 +67,11 @@ const userSchema = new Schema({
     ref: 'User',
     default: [] 
   }],
+  perfilesVistos: [{
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    default: []
+  }],
   fechaNacimiento: {
     type: Date
   },

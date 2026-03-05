@@ -175,6 +175,12 @@ const listarPotencialesMatches = async (req, res) => {
       return !(yoSigo && elMeSigue);
     });
 
+    // Filtrar perfiles ya vistos
+    perfiles = perfiles.filter(perfil => {
+      return !Array.isArray(yo.perfilesVistos) ||
+             !yo.perfilesVistos.some(id => id.toString() === perfil._id.toString());
+    });
+
     return res.status(200).json(perfiles);
 
   } catch (error) {
@@ -216,6 +222,11 @@ const seguirUsuario = async (req, res) => {
     } else {
       yo.siguiendo.push(idSeguido);
       otro.seguidores.push(yoId);
+      
+      // Agregar a perfiles vistos
+      if (!yo.perfilesVistos.includes(idSeguido)) {
+        yo.perfilesVistos.push(idSeguido);
+      }
     }
 
     // Nuevo: Sistema de matches automáticos
