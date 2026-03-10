@@ -87,7 +87,7 @@ const completarPerfil = async (req, res) => {
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
-    const usuarioId = req.usuario.id;
+    const usuarioId = req.usuario._id;
 
     if (!mensaje) {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
@@ -134,7 +134,7 @@ Mensaje del usuario: "${mensaje}"
 
 const obtenerHistorialChatbot = async (req, res) => {
   try {
-    const usuarioId = req.usuario.id;
+    const usuarioId = req.usuario._id;
 
     const historial = await HistorialConChatbot.findOne({ usuario: usuarioId });
 
