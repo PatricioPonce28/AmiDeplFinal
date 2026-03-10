@@ -373,7 +373,7 @@ const crearAporte = async (req, res) => {
       currency: "usd",
       payment_method: paymentMethodId,
       confirm: true,
-      return_url: "https://amikunaback.vercel.app/user/dashboard", // <--- Con esta ruta
+      return_url: "https://amikuna.vercel.app/user/dashboard",
     });
 
     // 2. Guardar en la base de datos
@@ -484,7 +484,6 @@ const enviarMensaje = async (req, res) => {
             return res.status(404).json({ msg: 'Chat no encontrado durante la actualización' });
         }
 
-        // <<-- AQUÍ ESTÁ LA LÍNEA QUE TE FALTABA -->>
         // Poblar la información del emisor en el último mensaje para que el otro usuario lo reciba completo
         const mensajeFinal = await Chat.populate(chatActualizado, {
             path: 'mensajes.emisor',
