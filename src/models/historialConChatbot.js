@@ -3,27 +3,21 @@ import mongoose from "mongoose";
 const mensajeSchema = new mongoose.Schema({
   rol: {
     type: String,
-    enum: "estudiante",
+    enum: ["usuario", "asistente"], // ← array, no string
     required: true
   },
-  contenido: {
-    type: String,
-    required: true
-  },
-  fecha: {
-    type: Date,
-    default: Date.now
-  }
+  contenido: { type: String, required: true },
+  fecha: { type: Date, default: Date.now }
 });
 
-const HistorialConChatbot = new mongoose.Schema({
+const historialSchema = new mongoose.Schema({ // ← variable diferente al model
   usuario: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User",       // ← el nombre de tu modelo de usuarios
+    ref: "User",
     required: true,
-    unique: true           // un historial por usuario
+    unique: true
   },
   mensajes: [mensajeSchema]
 }, { timestamps: true });
 
-export default mongoose.model("HistorialConChatbot", HistorialConChatbot);
+export default mongoose.model("HistorialConChatbot", historialSchema); 

@@ -24,6 +24,18 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Middleware 
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+
+// Configurar CORS usando variable de entorno
+const corsOptions = {
+  origin: process.env.URL_FRONTEND, // URL exacta del frontend
+  credentials: true,                // Permitir cookies/sesión
+}
+
+app.use(cors(corsOptions))
+
 app.use(fileUpload({
     useTempFiles : true,
     tempFileDir : '/tmp/'
@@ -32,15 +44,6 @@ app.use(fileUpload({
 // Configuraciones 
 app.set(`port`, process.env.PORT || 3000)
 
-// Configurar CORS usando variable de entorno
-const corsOptions = {
-  origin: process.env.URL_FRONTEND, // URL exacta del frontend
-  credentials: true,                // Permitir cookies/sesión
-}
-app.use(cors(corsOptions)) // Middlewares 
-
-// Middleware 
-app.use(express.json())
 
 // Sesión Google 
 app.use(session({

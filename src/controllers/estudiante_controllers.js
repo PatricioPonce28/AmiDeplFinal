@@ -11,7 +11,7 @@ import Chat from '../models/chats.js';
 import Aporte from '../models/Aporte.js';
 import { injectIO } from "../middlewares/injectIO.js";
 import Strike from '../models/strikes.js';
-import historialConChatbot from "../models/historialConChatbot.js";
+import HistorialConChatbot from "../models/historialConChatbot.js";
 
 const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
 
@@ -87,7 +87,7 @@ const completarPerfil = async (req, res) => {
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
-    const usuarioId = req.usuario._id;
+    const usuarioId = req.userBDD._id;
 
     if (!mensaje) {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
@@ -134,7 +134,7 @@ Mensaje del usuario: "${mensaje}"
 
 const obtenerHistorialChatbot = async (req, res) => {
   try {
-    const usuarioId = req.usuario._id;
+    const usuarioId = req.userBDD._id;
 
     const historial = await HistorialConChatbot.findOne({ usuario: usuarioId });
 
