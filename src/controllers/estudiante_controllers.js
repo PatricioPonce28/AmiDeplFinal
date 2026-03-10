@@ -109,7 +109,10 @@ Mensaje del usuario: "${mensaje}"
     res.status(200).json({ respuesta: texto });
 
   } catch (error) {
-    console.error("Error con Gemini:", error);
+    console.error("Error COMPLETO:", JSON.stringify(error, null, 2)); // ← agrega esto
+    console.error("Status:", error.status);
+    console.error("Mensaje:", error.message);
+    
     if (error.status === 429) {
       return res.status(429).json({ msg: "Límite alcanzado, intenta en unos segundos." });
     }
