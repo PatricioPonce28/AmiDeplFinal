@@ -20,5 +20,5 @@ export const generarConRetry = async (model, prompt, intentos = 3) => {
   }
 };
 
-export const getModel = (modelName = "gemini-1.5-flash") =>
+export const getModel = (modelName = "gemini-2.5-flash") =>
   genAI.getGenerativeModel({ model: modelName });
