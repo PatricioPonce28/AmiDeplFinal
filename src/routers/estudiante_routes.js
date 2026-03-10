@@ -1,7 +1,7 @@
 import {Router} from 'express'
 import { completarPerfil, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, confirmarAsistencia, rechazarAsistencia, enviarMensaje, obtenerMensajes,
-    crearAporte, iniciarChat, enviarStrike
+    crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
 import { perfilCompleto } from '../middlewares/perfilCompleto.js'
@@ -15,6 +15,9 @@ router.put("/completarperfil", verificarTokenJWT, completarPerfil);
 
 // Ruta para chatbot
 router.post('/perfil/chat', verificarTokenJWT, chatEstudiante);
+
+// Ruta para ver el historial de respuestas con el chatbot
+router.get('/perfil/chat/historial', verificarTokenJWT, obtenerHistorialChatbot);
 
 // Nueva ruta para obtener perfil completo
 router.get('/perfil', verificarTokenJWT, obtenerPerfilCompleto);
@@ -48,7 +51,6 @@ router.post("/aportes", verificarTokenJWT, crearAporte);
 
 // Enviar queja sugerencia al admin 
 router.post('/strike', verificarTokenJWT, enviarStrike);
-
 
 
 export default router 

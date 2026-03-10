@@ -11,6 +11,7 @@ import Chat from '../models/chats.js';
 import Aporte from '../models/Aporte.js';
 import { injectIO } from "../middlewares/injectIO.js";
 import Strike from '../models/strikes.js';
+import historialConChatbot from "../models/historialConChatbot.js";
 
 const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
 
@@ -86,6 +87,8 @@ const completarPerfil = async (req, res) => {
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
+    const usuarioId = req.usuario.id;
+
     if (!mensaje) {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
     }
@@ -97,24 +100,53 @@ Eres un asistente amigable en una app de citas llamada Amikuna.
 Ayudas a los usuarios a iniciar conversaciones, mejorar sus perfiles y dar consejos de relaciones de manera divertida y respetuosa. 
 Responde siempre con un tono informal pero con buena ortografía. 
 Usa lenguaje natural, que no parezca escrito por una IA.
-Tus respuestas no deben superar los 200 caracteres.
-Usa jerga y expresiones de Ecuador si es posible.
+Usa jerga y expresiones de Ecuador.
 
 Mensaje del usuario: "${mensaje}"
 `;
 
     const texto = await generarConRetry(model, prompt);
+
+    await HistorialConChatbot.findOneAndUpdate(
+      { usuario: usuarioId },
+      {
+        $push: {
+          mensajes: {
+            $each: [
+              { rol: "usuario",    contenido: mensaje }
+            ]
+          }
+        }
+      },
+      { upsert: true, new: true }  // upsert = crea si no existe
+    );
+
     res.status(200).json({ respuesta: texto });
 
   } catch (error) {
-    console.error("Error COMPLETO:", JSON.stringify(error, null, 2)); // ← agrega esto
-    console.error("Status:", error.status);
-    console.error("Mensaje:", error.message);
-    
+    console.error("Error con Gemini:", error);
     if (error.status === 429) {
       return res.status(429).json({ msg: "Límite alcanzado, intenta en unos segundos." });
     }
     res.status(500).json({ msg: "Error interno al consultar", error: error.message });
+  }
+};
+
+const obtenerHistorialChatbot = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+
+    const historial = await HistorialConChatbot.findOne({ usuario: usuarioId });
+
+    if (!historial) {
+      return res.status(200).json({ mensajes: [] });
+    }
+
+    res.status(200).json({ mensajes: historial.mensajes });
+
+  } catch (error) {
+    console.error("Error al obtener historial:", error);
+    res.status(500).json({ msg: "Error al obtener historial" });
   }
 };
 
@@ -591,6 +623,7 @@ export {
   iniciarChat,
   enviarMensaje,
   obtenerMensajes,
-  enviarStrike
+  enviarStrike,
+  obtenerHistorialChatbot
 }
 
