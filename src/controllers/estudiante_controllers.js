@@ -2,7 +2,6 @@ import mongoose from "mongoose"
 import users from '../models/users.js';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs-extra';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { generarConRetry, getModel } from "../helpers/gemini_helper.js";
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,7 +11,6 @@ import Chat from '../models/chats.js';
 import Aporte from '../models/Aporte.js';
 import { injectIO } from "../middlewares/injectIO.js";
 import Strike from '../models/strikes.js';
-
 
 const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
 
