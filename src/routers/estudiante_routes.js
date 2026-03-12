@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { completarPerfil, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
+import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, confirmarAsistencia, rechazarAsistencia, enviarMensaje, obtenerMensajes,
     crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot
   } from '../controllers/estudiante_controllers.js'
@@ -12,6 +12,11 @@ const router = Router();
 
 // Ruta para actualizar perfil
 router.put("/completarperfil", verificarTokenJWT, completarPerfil);
+
+// Rutas para manejar galería de fotos (subir / actualizar / eliminar)
+router.post("/galeria", verificarTokenJWT, agregarFotosGaleria);
+router.delete("/galeria", verificarTokenJWT, eliminarFotoGaleria);
+router.put("/galeria/:index", verificarTokenJWT, reemplazarFotoGaleria);
 
 // Ruta para chatbot
 router.post('/perfil/chat', verificarTokenJWT, chatEstudiante);

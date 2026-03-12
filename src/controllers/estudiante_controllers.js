@@ -15,6 +15,33 @@ import HistorialConChatbot from "../models/historialConChatbot.js";
 
 const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
 
+const getCloudinaryPublicIdFromUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
+  return match ? match[1] : null;
+};
+
+const uploadFilesToCloudinary = async (files, folder = 'Estudiantes/Galeria') => {
+  if (!files) return [];
+  const fileArray = Array.isArray(files) ? files : [files];
+  const uploaded = [];
+
+  for (const file of fileArray) {
+    const tempPath = file.tempFilePath || file.path;
+    const result = await cloudinary.uploader.upload(tempPath, { folder });
+    uploaded.push({ url: result.secure_url, public_id: result.public_id });
+
+    // Intentar borrar el archivo temporal (no crítico)
+    try {
+      if (tempPath) await fs.unlink(tempPath);
+    } catch (err) {
+      // Ignorar errores de borrado temporal
+    }
+  }
+
+  return uploaded;
+};
+
 const completarPerfil = async (req, res) => {
   try {
     const id = req.userBDD._id;
@@ -26,8 +53,8 @@ const completarPerfil = async (req, res) => {
     const genero = req.body.genero?.toLowerCase();
     const orientacion = req.body.orientacion?.toLowerCase();
     const fechaNacimiento = req.body.fechaNacimiento;
-    const ciudad = req.body['ubicacion[ciudad]']?.trim(); // EXTRAÍDO DE FORMDATA
-    const pais = req.body['ubicacion[pais]']?.trim(); // EXTRAÍDO DE FORMDATA
+    const ciudad = req.body['ubicacion[ciudad]']?.trim(); 
+    const pais = req.body['ubicacion[pais]']?.trim(); 
 
     // Validar campos obligatorios
     if (!nombre || !biografia || !fechaNacimiento || !genero || !orientacion || intereses.length === 0 || !ciudad || !pais) {
@@ -46,6 +73,16 @@ const completarPerfil = async (req, res) => {
       });
       usuario.imagenPerfil = resultado.secure_url;
       // await fs.unlink(file); // borrar imagen temporal (comentado porque a veces da problemas)
+    }
+
+    // Subir imágenes de galería (puede venir como un solo archivo o un arreglo)
+    const galeriaFiles = req.files?.imagenesGaleria || req.files?.galeria;
+    if (galeriaFiles) {
+      const uploads = await uploadFilesToCloudinary(galeriaFiles);
+      const urls = uploads.map(u => u.url);
+      usuario.imagenesGaleria = Array.isArray(usuario.imagenesGaleria)
+        ? [...usuario.imagenesGaleria, ...urls]
+        : urls;
     }
 
     // Actualizar campos
@@ -81,6 +118,109 @@ const completarPerfil = async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json({ msg: "Error en el servidor al actualizar el perfil" });
+  }
+};
+
+const agregarFotosGaleria = async (req, res) => {
+  try {
+    const id = req.userBDD._id;
+    const user = await users.findById(id);
+    if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
+
+    const galeriaFiles = req.files?.imagenesGaleria || req.files?.galeria;
+    if (!galeriaFiles) {
+      return res.status(400).json({ msg: "No se recibieron archivos. Envía los archivos en form-data bajo el campo 'imagenesGaleria'" });
+    }
+
+    const uploads = await uploadFilesToCloudinary(galeriaFiles);
+    const urls = uploads.map(u => u.url);
+
+    user.imagenesGaleria = Array.isArray(user.imagenesGaleria)
+      ? [...user.imagenesGaleria, ...urls]
+      : urls;
+
+    await user.save();
+
+    return res.status(200).json({ msg: "Imágenes guardadas en la galería", imagenesGaleria: user.imagenesGaleria });
+  } catch (error) {
+    console.error("Error agregando imágenes de galería:", error);
+    return res.status(500).json({ msg: "Error al agregar imágenes de galería" });
+  }
+};
+
+const eliminarFotoGaleria = async (req, res) => {
+  try {
+    const id = req.userBDD._id;
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ msg: "Se requiere la URL de la imagen a eliminar" });
+    }
+
+    const user = await users.findById(id);
+    if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
+
+    const exists = Array.isArray(user.imagenesGaleria) && user.imagenesGaleria.includes(url);
+    if (!exists) {
+      return res.status(404).json({ msg: "Imagen no encontrada en la galería" });
+    }
+
+    const publicId = getCloudinaryPublicIdFromUrl(url);
+    if (publicId) {
+      await cloudinary.uploader.destroy(publicId);
+    }
+
+    user.imagenesGaleria = user.imagenesGaleria.filter(img => img !== url);
+    await user.save();
+
+    return res.status(200).json({ msg: "Imagen eliminada con éxito", imagenesGaleria: user.imagenesGaleria });
+  } catch (error) {
+    console.error("Error eliminando imagen de galería:", error);
+    return res.status(500).json({ msg: "Error al eliminar imagen de galería" });
+  }
+};
+
+const reemplazarFotoGaleria = async (req, res) => {
+  try {
+    const id = req.userBDD._id;
+    const index = Number(req.params.index);
+    const file = req.files?.imagen;
+
+    if (Number.isNaN(index) || index < 0) {
+      return res.status(400).json({ msg: "Índice inválido" });
+    }
+
+    if (!file) {
+      return res.status(400).json({ msg: "Se requiere un archivo para reemplazar" });
+    }
+
+    const user = await users.findById(id);
+    if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
+
+    if (!Array.isArray(user.imagenesGaleria) || index >= user.imagenesGaleria.length) {
+      return res.status(400).json({ msg: "Índice fuera de rango" });
+    }
+
+    const oldUrl = user.imagenesGaleria[index];
+    const uploads = await uploadFilesToCloudinary(file);
+    const newUrl = uploads[0]?.url;
+
+    if (!newUrl) {
+      return res.status(500).json({ msg: "No se pudo subir la nueva imagen" });
+    }
+
+    const publicIdOld = getCloudinaryPublicIdFromUrl(oldUrl);
+    if (publicIdOld) {
+      await cloudinary.uploader.destroy(publicIdOld);
+    }
+
+    user.imagenesGaleria[index] = newUrl;
+    await user.save();
+
+    return res.status(200).json({ msg: "Imagen actualizada con éxito", imagenesGaleria: user.imagenesGaleria });
+  } catch (error) {
+    console.error("Error reemplazando imagen de galería:", error);
+    return res.status(500).json({ msg: "Error al reemplazar imagen de galería" });
   }
 };
 
@@ -612,6 +752,9 @@ const enviarStrike = async (req, res) => {
 
 export { 
   completarPerfil,
+  agregarFotosGaleria,
+  eliminarFotoGaleria,
+  reemplazarFotoGaleria,
   chatEstudiante,
   obtenerPerfilCompleto, 
   listarPotencialesMatches,
