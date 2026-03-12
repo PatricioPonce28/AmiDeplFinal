@@ -113,12 +113,13 @@ Mensaje del usuario: "${mensaje}"
         $push: {
           mensajes: {
             $each: [
-              { rol: "usuario",    contenido: mensaje }
+              { rol: "usuario",    contenido: mensaje },
+              { rol: "asistente", contenido: texto   }
             ]
           }
         }
       },
-      { upsert: true, new: true }  // upsert = crea si no existe
+      { upsert: true, new: true }  
     );
 
     res.status(200).json({ respuesta: texto });
