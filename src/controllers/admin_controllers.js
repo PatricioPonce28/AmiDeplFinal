@@ -9,6 +9,7 @@ import Evento from "../models/Evento.js";
 import cloudinary from "cloudinary";
 import fs from "fs-extra";
 import Strike from "../models/strikes.js";
+import HistorialNotificacion from '../models/HistorialNotificacion.js';
 
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
@@ -428,6 +429,20 @@ const crearEvento = async (req, res) => {
     });
 
     await evento.save();
+
+    const estudiantes = await users.find({ rol: 'estudiante' }).select('_id');
+    const notificaciones = estudiantes.map(u => ({
+      usuario: u._id,
+      tipo: 'evento',
+      titulo: 'Nuevo evento disponible',
+      mensaje: `El administrador creó un nuevo evento: ${titulo}`,
+      leido: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+    if (notificaciones.length) {
+      await HistorialNotificacion.insertMany(notificaciones);
+    }
 
     res.status(201).json({ msg: "Evento creado correctamente", evento });
   } catch (error) {

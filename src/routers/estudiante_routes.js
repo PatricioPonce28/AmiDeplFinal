@@ -1,6 +1,6 @@
 import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
-    obtenerEventos, confirmarAsistencia, rechazarAsistencia, enviarMensaje, obtenerMensajes,
+    obtenerEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, enviarMensaje, obtenerMensajes,
     crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
@@ -23,6 +23,10 @@ router.post('/perfil/chat', verificarTokenJWT, chatEstudiante);
 
 // Ruta para ver el historial de respuestas con el chatbot
 router.get('/perfil/chat/historial', verificarTokenJWT, obtenerHistorialChatbot);
+
+// Notificaciones
+router.get('/notificaciones', verificarTokenJWT, obtenerNotificaciones);
+router.put('/notificaciones/:id/leido', verificarTokenJWT, marcarNotificacionLeida);
 
 // Nueva ruta para obtener perfil completo
 router.get('/perfil', verificarTokenJWT, obtenerPerfilCompleto);

@@ -12,6 +12,7 @@ import Aporte from '../models/Aporte.js';
 import { injectIO } from "../middlewares/injectIO.js";
 import Strike from '../models/strikes.js';
 import HistorialConChatbot from "../models/historialConChatbot.js";
+import HistorialNotificacion from '../models/HistorialNotificacion.js';
 
 const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
 
@@ -40,6 +41,51 @@ const uploadFilesToCloudinary = async (files, folder = 'Estudiantes/Galeria') =>
   }
 
   return uploaded;
+};
+
+const crearNotificacion = async ({ usuarioId, tipo, titulo, mensaje }) => {
+  try {
+    await HistorialNotificacion.create({
+      usuario: usuarioId,
+      tipo,
+      titulo,
+      mensaje,
+      leido: false
+    });
+  } catch (error) {
+    console.error('Error creando notificación:', error);
+  }
+};
+
+const obtenerNotificaciones = async (req, res) => {
+  try {
+    const usuarioId = req.userBDD._id;
+    const notificaciones = await HistorialNotificacion.find({ usuario: usuarioId })
+      .sort({ createdAt: -1 })
+      .lean();
+    return res.status(200).json({ notificaciones });
+  } catch (error) {
+    console.error('Error al obtener notificaciones:', error);
+    return res.status(500).json({ msg: 'Error al obtener notificaciones' });
+  }
+};
+
+const marcarNotificacionLeida = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioId = req.userBDD._id;
+
+    const notificacion = await HistorialNotificacion.findOne({ _id: id, usuario: usuarioId });
+    if (!notificacion) return res.status(404).json({ msg: 'Notificación no encontrada' });
+
+    notificacion.leido = true;
+    await notificacion.save();
+
+    return res.status(200).json({ msg: 'Notificación marcada como leída' });
+  } catch (error) {
+    console.error('Error marcando notificación como leída:', error);
+    return res.status(500).json({ msg: 'Error al marcar notificación' });
+  }
 };
 
 const completarPerfil = async (req, res) => {
@@ -394,12 +440,19 @@ const seguirUsuario = async (req, res) => {
       if (!yo.perfilesVistos.includes(idSeguido)) {
         yo.perfilesVistos.push(idSeguido);
       }
+
+      // Notificación de nuevo seguidor
+      await crearNotificacion({
+        usuarioId: idSeguido,
+        tipo: 'seguidor',
+        titulo: 'Tienes un nuevo seguidor',
+        mensaje: `${yo.nombre} ${yo.apellido ?? ''} te está siguiendo.`
+      });
     }
 
     // Nuevo: Sistema de matches automáticos
     let huboMatch = false;
     if (!yaLoSigo && otro.siguiendo.includes(yoId)) {
-      // Agregar a matches si no existen ya
       if (!yo.matches.includes(idSeguido)) {
         yo.matches.push(idSeguido);
       }
@@ -407,7 +460,20 @@ const seguirUsuario = async (req, res) => {
         otro.matches.push(yoId);
       }
       huboMatch = true;
-      
+
+      await crearNotificacion({
+        usuarioId: yoId,
+        tipo: 'match',
+        titulo: '¡Nuevo match!',
+        mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? 'alguien'}.`
+      });
+      await crearNotificacion({
+        usuarioId: idSeguido,
+        tipo: 'match',
+        titulo: '¡Nuevo match!',
+        mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? 'alguien'}.`
+      });
+
       // Opcional: Crear chat (si tienes esta función)
       if (req.io) {
         await guardarMatch(yoId, idSeguido, req.io);
@@ -424,7 +490,7 @@ const seguirUsuario = async (req, res) => {
           ? "¡Match! Ahora pueden chatear" 
           : "Ahora sigues a este usuario",
       siguiendo: yo.siguiendo.length,
-      huboMatch //
+      huboMatch
     });
 
   } catch (error) {
@@ -763,6 +829,8 @@ export {
   obtenerEventos,
   confirmarAsistencia,
   rechazarAsistencia,
+  obtenerNotificaciones,
+  marcarNotificacionLeida,
   crearAporte,
   iniciarChat,
   enviarMensaje,
