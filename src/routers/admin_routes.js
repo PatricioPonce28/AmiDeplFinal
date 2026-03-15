@@ -1,6 +1,6 @@
 import {Router} from 'express'
 import { comprobarTokenPasword, confirmarMail, crearNuevoPassword, recuperarPassword, registro, 
-    cambiarPasswordAdmin, generarNuevaPasswordAdmin, login, perfil, actualizarPerfilAdmin, listarEstudiantes, 
+    cambiarPasswordAdmin, generarNuevaPasswordAdmin, login, perfil, logout, actualizarPerfilAdmin, listarEstudiantes, 
     eliminarEstudiante, crearEvento, obtenerEventosAdmin, actualizarEvento, eliminarEvento, verMisStrikes} 
 from '../controllers/admin_controllers.js'
 import { verificarTokenJWT } from '../middlewares/JWT.js'
@@ -24,6 +24,7 @@ router.post('/login', login)
 
 // Ruta protegida
 router.get('/perfil', verificarTokenJWT, perfil)
+router.post('/logout', verificarTokenJWT, logout)
 router.put('/perfil/:id',verificarTokenJWT,actualizarPerfilAdmin)
 
 // Listar todos los usuarios

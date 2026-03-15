@@ -88,6 +88,10 @@ const marcarNotificacionLeida = async (req, res) => {
   }
 };
 
+const logout = (req, res) => {
+  return res.status(200).json({ msg: 'Sesión cerrada. Guarda el token localmente removido en frontend.' });
+};
+
 const completarPerfil = async (req, res) => {
   try {
     const id = req.userBDD._id;
@@ -831,6 +835,7 @@ export {
   rechazarAsistencia,
   obtenerNotificaciones,
   marcarNotificacionLeida,
+  logout,
   crearAporte,
   iniciarChat,
   enviarMensaje,

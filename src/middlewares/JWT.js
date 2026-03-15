@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import users from "../models/users.js";
 
 const crearTokenJWT = (id, rol) => {
-  return jwt.sign({ id, rol }, process.env.JWT_SECRET, { expiresIn: "1d" });
+  return jwt.sign({ id, rol }, process.env.JWT_SECRET, { expiresIn: "8h" });
 };
 
 const verificarTokenJWT = async (req, res, next) => {

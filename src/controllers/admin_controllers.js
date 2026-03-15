@@ -304,6 +304,10 @@ const perfil = (req, res) => {
   res.status(403).json({ msg: "Rol no autorizado" });
 };
 
+const logout = (req, res) => {
+  return res.status(200).json({ msg: 'Sesión cerrada exitosamente' });
+};
+
 const actualizarPerfilAdmin = async (req, res) => {
   const { id } = req.params;
   const { nombre, genero, orientacion } = req.body;
@@ -563,6 +567,7 @@ export {
   generarNuevaPasswordAdmin,
   login,
   perfil,
+  logout,
   actualizarPerfilAdmin,
   listarEstudiantes,
   eliminarEstudiante,

@@ -1,6 +1,6 @@
 import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
-    obtenerEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, enviarMensaje, obtenerMensajes,
+    obtenerEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, logout, enviarMensaje, obtenerMensajes,
     crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
@@ -57,6 +57,9 @@ router.post("/chats/:chatId/mensajes", verificarTokenJWT, injectIO, enviarMensaj
 router.get("/chats/:chatId/ver-mensajes", verificarTokenJWT, injectIO, obtenerMensajes);
 // Pasarela para aporte 
 router.post("/aportes", verificarTokenJWT, crearAporte);
+
+// Logout
+router.post('/logout', verificarTokenJWT, logout);
 
 // Enviar queja sugerencia al admin 
 router.post('/strike', verificarTokenJWT, enviarStrike);
