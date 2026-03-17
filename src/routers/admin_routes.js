@@ -49,6 +49,4 @@ router.delete('/eliminar-evento/:id' , verificarTokenJWT, eliminarEvento);
 router.get('/mis-strikes', verificarTokenJWT, verMisStrikes);
 
 
-
-
 export default router

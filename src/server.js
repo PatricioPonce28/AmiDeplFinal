@@ -1,8 +1,8 @@
-// Servidor web
-// requerir módulos
 import express from 'express'
 import dotenv from 'dotenv' 
-import cors from 'cors'; 
+import cors from 'cors';
+import { createServer } from 'http'
+import { Server } from 'socket.io' 
 import fileUpload from 'express-fileupload'
 import { v2 as cloudinary } from 'cloudinary'
 import router from './routers/admin_routes.js';
@@ -14,6 +14,7 @@ import authRoutes from './routers/auth_Google_routes.js';
 
 // Inicializaciones 
 const app = express()
+const httpServer = createServer(app)
 
 app.set('trust proxy', 1);
 
@@ -35,6 +36,14 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
+
+const io = new Server(httpServer, {           
+  cors: {
+    origin: process.env.URL_FRONTEND,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+})
 
 app.use(fileUpload({
     useTempFiles : true,

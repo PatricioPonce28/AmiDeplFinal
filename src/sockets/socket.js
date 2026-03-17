@@ -10,7 +10,7 @@ export const initSocket = (server) => {
     cors: {
         origin: [
     "http://localhost:5173",
-    "https://amikuna.vercel.app/"
+    "https://amikuna.vercel.app"
   ],
       methods: ["GET", "POST"]
     }
