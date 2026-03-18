@@ -43,10 +43,11 @@ const uploadFilesToCloudinary = async (files, folder = 'Estudiantes/Galeria') =>
   return uploaded;
 };
 
-const crearNotificacion = async ({ usuarioId, tipo, titulo, mensaje }) => {
+const crearNotificacion = async ({ usuarioId, fromUserId = null , tipo, titulo, mensaje }) => {
   try {
     await HistorialNotificacion.create({
       usuario: usuarioId,
+      fromUser: fromUserId,
       tipo,
       titulo,
       mensaje,
@@ -61,6 +62,7 @@ const obtenerNotificaciones = async (req, res) => {
   try {
     const usuarioId = req.userBDD._id;
     const notificaciones = await HistorialNotificacion.find({ usuario: usuarioId })
+      .populate('fromUser', 'nombre imagenPerfil')
       .sort({ createdAt: -1 })
       .lean();
     return res.status(200).json({ notificaciones });
@@ -288,7 +290,9 @@ const chatEstudiante = async (req, res) => {
     const prompt = `
 Eres un asistente amigable en una app de citas llamada Amikuna. 
 Ayudas a los usuarios a iniciar conversaciones, mejorar sus perfiles y dar consejos de relaciones de manera divertida y respetuosa. 
-Responde siempre con un tono informal pero con buena ortografía. 
+Responde siempre con un tono informal pero con buena ortografía.
+Recuerda que eres un chatbot y no puedes recibir mensajes de voz, imágenes o videos, solo texto y debes
+responder de esa manera sin la recepción de lo anteriormente mencionado solo texto (si puedes usar emojis).
 Usa lenguaje natural, que no parezca escrito por una IA.
 Usa jerga y expresiones de Ecuador.
 
@@ -448,6 +452,7 @@ const seguirUsuario = async (req, res) => {
       // Notificación de nuevo seguidor
       await crearNotificacion({
         usuarioId: idSeguido,
+        fromUserId: yoId,
         tipo: 'seguidor',
         titulo: 'Tienes un nuevo seguidor',
         mensaje: `${yo.nombre} ${yo.apellido ?? ''} te está siguiendo.`
@@ -467,6 +472,7 @@ const seguirUsuario = async (req, res) => {
 
       await crearNotificacion({
         usuarioId: yoId,
+        fromUserId: idSeguido,
         tipo: 'match',
         titulo: '¡Nuevo match!',
         mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? 'alguien'}.`

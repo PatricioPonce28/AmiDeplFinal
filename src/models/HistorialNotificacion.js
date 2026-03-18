@@ -2,6 +2,11 @@ import { Schema, model } from 'mongoose';
 
 const historialNotificacionSchema = new Schema({
   usuario: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  fromUser: {               
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: false         
+  },
   tipo: {
     type: String,
     enum: ['seguidor', 'match', 'evento', 'generico'],
