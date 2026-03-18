@@ -2,17 +2,19 @@ import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
 dotenv.config()
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
-    }
-})
-
 const sendMailToRegister = async (userMail, token) => {
+    const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+            user: process.env.GMAIL_USER,
+            pass: process.env.GMAIL_APP_PASSWORD
+        }
+    })
+
     try {
-        const confirmationLink = `${process.env.URL_FRONTEND}/confirmar/${token}`
+        const confirmationLink = `${process.env.URL_FRONTEND}confirmar/${token}`
 
         await transporter.sendMail({
             from: `AmiKuna <${process.env.GMAIL_USER}>`,
@@ -53,7 +55,7 @@ const sendMailToRegister = async (userMail, token) => {
                   </div>
                 </body>
                 </html>
-            `
+              `
         })
 
         console.log(`Email de registro enviado a: ${userMail}`)
@@ -64,8 +66,18 @@ const sendMailToRegister = async (userMail, token) => {
 }
 
 const sendMailToRecoveryPassword = async (userMail, token) => {
+    const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+            user: process.env.GMAIL_USER,
+            pass: process.env.GMAIL_APP_PASSWORD
+        }
+    })
+
     try {
-        const resetLink = `${process.env.URL_FRONTEND}/recuperarpassword/${token}`
+        const resetLink = `${process.env.URL_FRONTEND}recuperarpassword/${token}`
 
         await transporter.sendMail({
             from: `AmiKuna <${process.env.GMAIL_USER}>`,
