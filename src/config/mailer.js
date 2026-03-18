@@ -14,7 +14,7 @@ const sendMailToRegister = async (userMail, token) => {
     })
 
     try {
-        const confirmationLink = `${process.env.URL_FRONTEND}confirmar/${token}`
+        const confirmationLink = `${process.env.URL_FRONTEND}/confirmar/${token}`
 
         await transporter.sendMail({
             from: `AmiKuna <${process.env.GMAIL_USER}>`,
@@ -77,7 +77,7 @@ const sendMailToRecoveryPassword = async (userMail, token) => {
     })
 
     try {
-        const resetLink = `${process.env.URL_FRONTEND}recuperarpassword/${token}`
+        const resetLink = `${process.env.URL_FRONTEND}/recuperarpassword/${token}`
 
         await transporter.sendMail({
             from: `AmiKuna <${process.env.GMAIL_USER}>`,
