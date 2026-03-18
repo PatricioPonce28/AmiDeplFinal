@@ -1,8 +1,5 @@
 import mongoose from "mongoose";
-import {
-  sendMailToRegister,
-  sendMailToRecoveryPassword,
-} from "../config/mailer.js";
+
 import users from "../models/users.js";
 import { crearTokenJWT } from "../middlewares/JWT.js";
 import Evento from "../models/Evento.js";
@@ -11,49 +8,62 @@ import fs from "fs-extra";
 import Strike from "../models/strikes.js";
 import HistorialNotificacion from '../models/HistorialNotificacion.js';
 
+//nuevas importaciones para admin
+import supabase from "../config/supabase.js";
+
+// registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
+
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
 
-  // Validar que ningún campo esté vacío
+  // Validaciones — igual que antes
   if ([nombre, apellido, email, password, confirmPassword].includes("")) {
-    return res
-      .status(400)
-      .json({ msg: "Lo sentimos, todos los campos son obligatorios" });
+    return res.status(400).json({ msg: "Todos los campos son obligatorios" });
   }
 
-  // Verificar si el correo ya existe
   const verificarEmailBDD = await users.findOne({ email });
   if (verificarEmailBDD) {
-    return res
-      .status(400)
-      .json({ msg: "Lo sentimos, este email ya está registrado" });
+    return res.status(400).json({ msg: "Este email ya está registrado" });
   }
 
-  // Validar que las contraseñas coincidan
   if (password !== confirmPassword) {
     return res.status(400).json({ msg: "Las contraseñas no coinciden" });
   }
 
-  // Crear nuevo usuario
+  // Guardar en MongoDB — igual que antes
   const newUser = new users({ nombre, apellido, email });
   newUser.password = await newUser.encryptPassword(password);
-
-  // Generar token de confirmación
   newUser.crearToken();
-
-  // Guardar en BD
   await newUser.save();
 
-  // Enviar correo
- try {
-  await sendMailToRegister(email, newUser.token);
-} catch (error) {
-  console.error("Error enviando correo:", error.message);
-}
-  return res
-    .status(200)
-    .json({ msg: "Revisa tu correo electrónico para confirmar tu cuenta" });
+  // Enviar correo via Supabase — NUEVO
+  try {
+    const confirmationLink = `${process.env.URL_FRONTEND}/confirmar/${newUser.token}`;
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: confirmationLink,
+        data: { nombre, apellido }
+      }
+    });
+
+    if (error) throw error;
+
+    console.log("✅ Email de confirmación enviado:", email);
+
+  } catch (error) {
+    console.error("❌ Error enviando correo:", error.message);
+    return res.status(500).json({
+      msg: "Usuario registrado pero hubo un problema al enviar el correo."
+    });
+  }
+
+  return res.status(200).json({
+    msg: "Revisa tu correo electrónico para confirmar tu cuenta"
+  });
 };
+
 
 const confirmarMail = async (req, res) => {
   const token = req.params.token;
@@ -87,6 +97,7 @@ const recuperarPassword = async (req, res) => {
       msg: "Revisa tu correo electrónico para reestablecer tu contraseña",
     });
 };
+
 
 const comprobarTokenPasword = async (req, res) => {
   const { token } = req.params;
