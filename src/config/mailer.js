@@ -1,41 +1,32 @@
-import nodemailer from 'nodemailer';
+// src/config/mailer.js
+import { BrevoClient } from '@getbrevo/brevo';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,           
-  auth: {
-    user: process.env.BREVO_SMTP_USER,
-    pass: process.env.BREVO_SMTP_KEY,
-  },
-  tls: {
-    rejectUnauthorized: false,  
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 5000,
-  socketTimeout: 10000,
+// Inicializa el cliente una vez
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+  timeout: 30000,      
+  maxRetries: 3        
 });
 
-/**
- * Envía el correo de confirmación de registro
- * @param {string} toEmail - Correo del usuario nuevo
- * @param {string} token - Token de verificación
- * @returns {Promise<Object>} Info del envío
- */
 const sendMailToRegister = async (toEmail, token) => {
   try {
     const frontendUrl = process.env.URL_FRONTEND;
     const confirmationLink = `${frontendUrl}/confirmar/${token}`;
 
-    const info = await transporter.sendMail({
-      from: '"AmiKuna" <geanotponce95@gmail.com>', // remitente VERIFICADO en Brevo
-      to: toEmail,
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: {
+        email: 'geanotponce95@gmail.com',
+        name: 'AmiKuna'
+      },
+      to: [
+        { email: toEmail }
+      ],
       subject: '❤️🔥 AmiKuna 🔥❤️ - Confirma tu cuenta para empezar',
-      text: `¡Hola! Estás a un paso de unirte a AmiKuna.\n\nConfirma tu cuenta haciendo clic aquí:\n${confirmationLink}\n\nEl enlace expira en 24 horas.\n\n¡Te esperamos!\nEquipo AmiKuna 💕`,
-      html: `
+      textContent: `¡Hola! Estás a un paso de unirte a AmiKuna.\n\nConfirma tu cuenta aquí:\n${confirmationLink}\n\nEl enlace expira en 24 horas.\n\n¡Te esperamos!\nEquipo AmiKuna 💕`,
+      htmlContent: `
         <!DOCTYPE html>
         <html lang="es">
         <head>
@@ -46,7 +37,6 @@ const sendMailToRegister = async (toEmail, token) => {
         <body style="margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f9f9f9;">
           <div style="max-width:600px; margin:30px auto; background:white; border-radius:20px; overflow:hidden; box-shadow:0 10px 30px rgba(255,107,107,0.2);">
             
-            <!-- Header -->
             <div style="background:linear-gradient(135deg, #ff6b6b, #ff4757, #ff3838); padding:40px 20px; text-align:center;">
               <span style="font-size:48px;">❤️</span>
               <h1 style="color:white; margin:10px 0 0; font-size:36px; font-weight:bold;">
@@ -57,7 +47,6 @@ const sendMailToRegister = async (toEmail, token) => {
               </p>
             </div>
 
-            <!-- Contenido principal -->
             <div style="padding:40px 30px; text-align:center;">
               <h2 style="color:#ff4757; font-size:28px; margin:0 0 20px;">
                 ¡Bienvenido(a) a AmiKuna! 💕
@@ -78,7 +67,6 @@ const sendMailToRegister = async (toEmail, token) => {
               </p>
             </div>
 
-            <!-- Footer -->
             <div style="background:linear-gradient(135deg, #ff8e8e, #ffa8a8); padding:25px; text-align:center;">
               <p style="color:white; font-size:14px; margin:0;">
                 Con cariño,<br>
@@ -88,37 +76,37 @@ const sendMailToRegister = async (toEmail, token) => {
           </div>
         </body>
         </html>
-      `,
+      `
     });
 
-    console.log(`[MAIL] Registro enviado a ${toEmail} → MessageID: ${info.messageId}`);
-    return info;
+    console.log(`[Brevo v5] Registro enviado a ${toEmail} → ID: ${response.messageId || response.id}`);
+    return response;
   } catch (error) {
-    console.error(`[MAIL ERROR] Fallo al enviar registro a ${toEmail}:`, error.message);
+    console.error(`[Brevo v5 ERROR] Fallo al enviar registro a ${toEmail}:`, error.message);
     if (error.response) {
-      console.error('Respuesta SMTP:', error.response);
+      console.error('Respuesta de Brevo:', error.response.data || error.response);
     }
     throw error;
   }
 };
 
 /**
- * Envía el correo de recuperación de contraseña
- * @param {string} toEmail - Correo del usuario
- * @param {string} token - Token de reseteo
- * @returns {Promise<Object>} Info del envío
+ * Envía correo de recuperación de contraseña
  */
 const sendMailToRecoveryPassword = async (toEmail, token) => {
   try {
     const frontendUrl = process.env.URL_FRONTEND;
     const resetLink = `${frontendUrl}/recuperarpassword/${token}`;
 
-    const info = await transporter.sendMail({
-      from: '"AmiKuna Soporte" <geanotponce95@gmail.com>',
-      to: toEmail,
+    const response = await brevo.transactionalEmails.sendTransacEmail({
+      sender: {
+        email: 'geanotponce95@gmail.com',
+        name: 'AmiKuna Soporte'
+      },
+      to: [{ email: toEmail }],
       subject: '🔐 AmiKuna - Recupera tu contraseña',
-      text: `Hola,\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nHaz clic aquí para crear una nueva:\n${resetLink}\n\nSi no fuiste tú, ignora este mensaje.\n\nEl enlace expira en 1 hora.\n\nEquipo AmiKuna`,
-      html: `
+      textContent: `Hola,\n\nRecibimos una solicitud para restablecer tu contraseña.\n\nHaz clic aquí para crear una nueva:\n${resetLink}\n\nSi no fuiste tú, ignora este mensaje.\n\nEl enlace expira en 1 hora.\n\nEquipo AmiKuna`,
+      htmlContent: `
         <!DOCTYPE html>
         <html lang="es">
         <head>
@@ -129,7 +117,6 @@ const sendMailToRecoveryPassword = async (toEmail, token) => {
         <body style="margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; background:#f9f9f9;">
           <div style="max-width:600px; margin:30px auto; background:white; border-radius:20px; overflow:hidden; box-shadow:0 10px 30px rgba(255,107,107,0.2);">
             
-            <!-- Header -->
             <div style="background:linear-gradient(135deg, #ff6b6b, #ff4757); padding:40px 20px; text-align:center;">
               <span style="font-size:48px;">🔐</span>
               <h1 style="color:white; margin:10px 0 0; font-size:32px;">
@@ -140,7 +127,6 @@ const sendMailToRecoveryPassword = async (toEmail, token) => {
               </p>
             </div>
 
-            <!-- Contenido -->
             <div style="padding:40px 30px; text-align:center;">
               <h2 style="color:#ff4757; font-size:26px; margin:0 0 20px;">
                 ¿Olvidaste tu contraseña? 💭
@@ -161,7 +147,6 @@ const sendMailToRecoveryPassword = async (toEmail, token) => {
               </p>
             </div>
 
-            <!-- Footer -->
             <div style="background:linear-gradient(135deg, #ff8e8e, #ffa8a8); padding:25px; text-align:center;">
               <p style="color:white; font-size:14px; margin:0;">
                 Con seguridad y cariño,<br>
@@ -171,15 +156,15 @@ const sendMailToRecoveryPassword = async (toEmail, token) => {
           </div>
         </body>
         </html>
-      `,
+      `
     });
 
-    console.log(`[MAIL] Recuperación enviada a ${toEmail} → MessageID: ${info.messageId}`);
-    return info;
+    console.log(`[Brevo v5] Recuperación enviada a ${toEmail} → ID: ${response.messageId || response.id}`);
+    return response;
   } catch (error) {
-    console.error(`[MAIL ERROR] Fallo al enviar recuperación a ${toEmail}:`, error.message);
+    console.error(`[Brevo v5 ERROR] Fallo al enviar recuperación a ${toEmail}:`, error.message);
     if (error.response) {
-      console.error('Respuesta SMTP:', error.response);
+      console.error('Respuesta de Brevo:', error.response.data || error.response);
     }
     throw error;
   }
