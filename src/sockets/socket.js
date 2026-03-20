@@ -27,7 +27,7 @@ export const initSocket = (server) => {
       if (!user) return next(new Error("Usuario no encontrado"));
       
       socket.user = user;
-      socket.join(user._id.toString()); // Room por usuario ID
+      socket.join(user._id.toString()); 
       next();
     } catch (error) {
       next(new Error("Autenticación fallida"));
@@ -37,11 +37,22 @@ export const initSocket = (server) => {
   io.on('connection', async (socket) => {
     console.log(`Usuario conectado: ${socket.user._id} (${socket.id})`);
 
-    // Unir al usuario a sus chats existentes
-    const chats = await Chat.find({ participantes: socket.user._id });
-    chats.forEach(chat => {
-      socket.join(`chat_${chat._id}`);
+    socket.join(socket.user._id.toString());
+    // Unirse a salas de chats existentes
+    socket.on('join:chat', async (chatId) => {
+      try {
+        const chat = await Chat.findOne({
+          _id: chatId,
+          participantes: socket.user._id
+        });
+        if (!chat) return;
+        socket.join(chatId.toString());
+        console.log(`Usuario ${socket.user._id} se unió a sala ${chatId}`);
+      } catch (error) {
+        console.error('Error al unirse al chat:', error);
+      }
     });
+   
 
     // Manejar mensajes de chat
     socket.on('chat:mensaje', async ({ chatId, contenido }) => {
