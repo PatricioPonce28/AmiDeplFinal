@@ -9,7 +9,7 @@ const historialNotificacionSchema = new Schema({
   },
   tipo: {
     type: String,
-    enum: ['seguidor', 'match', 'evento', 'generico', 'respuesta_strike'],
+    enum: ['seguidor', 'match', 'evento', 'generico', 'respuesta_strike', 'denuncia'],
     default: 'generico'
   },
   titulo: { type: String, required: true },

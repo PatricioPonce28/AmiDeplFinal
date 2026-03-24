@@ -849,7 +849,67 @@ const obtenerMensajes = async (req, res) => {
   }
 };
 
-const enviarStrike = async (req, res) => {
+const reportarUsuarioChat = async (req, res) => {
+  try {
+    const chatId = req.params.chatId;
+    const usuarioId = req.userBDD._id;
+    const { razon } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(400).json({ msg: 'ID de chat inválido' });
+    }
+
+    if (!razon || razon.trim().length < 5) {
+      return res.status(400).json({ msg: 'Por favor describe el motivo con al menos 5 caracteres' });
+    }
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({ msg: 'Chat no encontrado' });
+    }
+
+    if (!chat.participantes.some(p => p.toString() === usuarioId.toString())) {
+      return res.status(403).json({ msg: 'No tienes permiso para reportar este chat' });
+    }
+
+    const usuarioReportado = chat.participantes.find(p => p.toString() !== usuarioId.toString());
+    if (!usuarioReportado) {
+      return res.status(400).json({ msg: 'No se pudo identificar al usuario reportado' });
+    }
+
+    const admin = await users.findOne({ correo: 'admin@epn.edu.ec' });
+    if (!admin) {
+      return res.status(500).json({ msg: 'Administrador no encontrado en el sistema' });
+    }
+
+    const nuevoStrike = new Strike({
+      de: usuarioId,
+      para: admin._id,
+      tipo: 'denuncia',
+      razon: razon.trim(),
+      usuarioReportado,
+      chat: chat._id,
+      status: 'pendiente'
+    });
+
+    await nuevoStrike.save();
+
+    await HistorialNotificacion.create({
+      usuario: admin._id,
+      fromUser: usuarioId,
+      tipo: 'denuncia',
+      titulo: 'Nueva denuncia de usuario',
+      mensaje: `El usuario con ID ${usuarioId} reportó al usuario con ID ${usuarioReportado} en el chat ${chat._id}`
+    });
+
+    return res.status(201).json({ msg: 'Denuncia enviada correctamente', strike: nuevoStrike });
+  } catch (error) {
+    console.error('Error al reportar usuario:', error);
+    return res.status(500).json({ msg: 'Error interno al reportar usuario' });
+  }
+};
+
+const   enviarStrike = async (req, res) => {
   try {
     const de = req.userBDD._id;
     const { tipo, razon } = req.body;
@@ -862,8 +922,8 @@ const enviarStrike = async (req, res) => {
     }
 
     // Validaciones
-    if (!['queja', 'sugerencia'].includes(tipo)) {
-      return res.status(400).json({ msg: "Tipo debe ser 'queja' o 'sugerencia'" });
+    if (!['queja', 'sugerencia', 'denuncia'].includes(tipo)) {
+      return res.status(400).json({ msg: "Tipo debe ser 'queja', 'sugerencia' o 'denuncia'" });
     }
 
     if (!razon || razon.trim().length < 5) {
@@ -931,6 +991,7 @@ export {
   iniciarChat,
   enviarMensaje,
   obtenerMensajes,
+  reportarUsuarioChat,
   enviarStrike,
   obtenerHistorialChatbot,
   verMisStrikes

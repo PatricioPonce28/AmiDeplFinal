@@ -6,6 +6,7 @@ import Evento from "../models/Evento.js";
 import cloudinary from "cloudinary";
 import fs from "fs-extra";
 import Strike from "../models/strikes.js";
+import Chat from '../models/chats.js';
 import HistorialNotificacion from '../models/HistorialNotificacion.js';
 
 //nuevas importaciones para admin
@@ -561,6 +562,8 @@ const verMisStrikes = async (req, res) => {
     const strikes = await Strike.find({})
       .populate("de", "nombre apellido email") // quién envió
       .populate("para", "nombre apellido email") // a quién (admin)
+      .populate("usuarioReportado", "nombre apellido email")
+      .populate("chat")
       .sort({ fecha: -1 });
 
     res.status(200).json(strikes);
@@ -628,6 +631,83 @@ const responderStrike = async (req, res) => {
   }
 };
 
+const obtenerDenunciaDetalle = async (req, res) => {
+  try {
+    const usuario = req.userBDD;
+    if (!usuario || usuario.rol !== 'admin') {
+      return res.status(403).json({ msg: 'Acceso denegado: solo administradores' });
+    }
+
+    const { strikeId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(strikeId)) {
+      return res.status(400).json({ msg: 'ID de strike inválido' });
+    }
+
+    const strike = await Strike.findById(strikeId)
+      .populate('de', 'nombre apellido email')
+      .populate('usuarioReportado', 'nombre apellido email')
+      .populate('chat');
+
+    if (!strike) {
+      return res.status(404).json({ msg: 'Strike no encontrado' });
+    }
+
+    return res.status(200).json({ strike });
+  } catch (error) {
+    console.error('Error al obtener detalle de denuncia:', error);
+    return res.status(500).json({ msg: 'Error interno al obtener detalle de denuncia' });
+  }
+};
+
+const eliminarMatchYChat = async (req, res) => {
+  try {
+    const usuario = req.userBDD;
+    if (!usuario || usuario.rol !== 'admin') {
+      return res.status(403).json({ msg: 'Acceso denegado: solo administradores' });
+    }
+
+    const { strikeId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(strikeId)) {
+      return res.status(400).json({ msg: 'ID de strike inválido' });
+    }
+
+    const strike = await Strike.findById(strikeId);
+    if (!strike || !strike.usuarioReportado || !strike.chat) {
+      return res.status(404).json({ msg: 'Strike o datos asociados no encontrados' });
+    }
+
+    const chat = await Chat.findByIdAndDelete(strike.chat);
+
+    await users.findByIdAndUpdate(strike.de, {
+      $pull: {
+        matches: strike.usuarioReportado,
+        siguiendo: strike.usuarioReportado,
+        seguidores: strike.usuarioReportado
+      }
+    });
+
+    await users.findByIdAndUpdate(strike.usuarioReportado, {
+      $pull: {
+        matches: strike.de,
+        siguiendo: strike.de,
+        seguidores: strike.de
+      }
+    });
+
+    strike.status = 'resuelto';
+    await strike.save();
+
+    return res.status(200).json({
+      msg: 'Match y chat eliminados con éxito',
+      chatEliminado: !!chat,
+      strike
+    });
+  } catch (error) {
+    console.error('Error eliminando match/chat:', error);
+    return res.status(500).json({ msg: 'Error interno al eliminar match y chat' });
+  }
+};
+
 
 export {
   registro,
@@ -648,5 +728,7 @@ export {
   actualizarEvento,
   eliminarEvento,
   verMisStrikes,
+  obtenerDenunciaDetalle,
+  eliminarMatchYChat,
   responderStrike,
 };

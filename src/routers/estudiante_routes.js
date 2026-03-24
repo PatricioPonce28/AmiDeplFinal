@@ -1,7 +1,8 @@
 import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
-    crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes
+    crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
+    reportarUsuarioChat
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
 import { perfilCompleto } from '../middlewares/perfilCompleto.js'
@@ -63,6 +64,8 @@ router.post('/logout', verificarTokenJWT, logout);
 
 // Enviar queja sugerencia al admin 
 router.post('/strike', verificarTokenJWT, enviarStrike);
+
+router.post('/chats/:chatId/report', verificarTokenJWT, reportarUsuarioChat);
 
 // Ver mis quejas/sugerencias y sus respuestas
 router.get('/mis-strikes', verificarTokenJWT, verMisStrikes);

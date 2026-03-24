@@ -13,7 +13,7 @@ const strikeSchema = new mongoose.Schema({
   },
   tipo: {
     type: String,
-    enum: ['queja', 'sugerencia'],
+    enum: ['queja', 'sugerencia', 'denuncia'],
     required: true
   },
   razon: {
@@ -21,6 +21,21 @@ const strikeSchema = new mongoose.Schema({
     required: true,
     trim: true,
     maxlength: 1000
+  },
+  usuarioReportado: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false
+  },
+  chat: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Chat',
+    required: false
+  },
+  status: {
+    type: String,
+    enum: ['pendiente', 'resuelto', 'rechazado'],
+    default: 'pendiente'
   },
   respuesta: {
     type: String,
