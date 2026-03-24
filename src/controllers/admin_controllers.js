@@ -557,16 +557,77 @@ const verMisStrikes = async (req, res) => {
         });
     }
 
-    const strikes = await Strike.find({ para: usuario._id })
-      .populate("de", "nombre apellido correo") // quién envió
+    // Admin ve TODOS los strikes de todos los estudiantes
+    const strikes = await Strike.find({})
+      .populate("de", "nombre apellido email") // quién envió
+      .populate("para", "nombre apellido email") // a quién (admin)
       .sort({ fecha: -1 });
 
     res.status(200).json(strikes);
   } catch (error) {
-    console.error("Error al obtener mensajes del admin:", error);
-    res.status(500).json({ msg: "Error interno al obtener mensajes." });
+    console.error("Error al obtener strikes:", error);
+    res.status(500).json({ msg: "Error interno al obtener strikes." });
   }
 };
+
+const responderStrike = async (req, res) => {
+  try {
+    const { strikeId } = req.params;
+    const { respuesta } = req.body;
+    const usuario = req.userBDD;
+
+    // Validar que sea admin
+    if (!usuario || usuario.rol !== "admin") {
+      return res
+        .status(403)
+        .json({
+          msg: "Acceso denegado: solo los administradores pueden responder strikes.",
+        });
+    }
+
+    // Validar campos obligatorios
+    if (!strikeId || !respuesta || respuesta.trim().length < 5) {
+      return res.status(400).json({
+        msg: "Strike ID y respuesta (mínimo 5 caracteres) son obligatorios",
+      });
+    }
+
+    // Buscar el strike
+    const strike = await Strike.findById(strikeId).populate("de", "_id");
+    if (!strike) {
+      return res.status(404).json({ msg: "Strike no encontrado" });
+    }
+
+    // Verificar que el strike va dirigido al admin actual
+    if (strike.para.toString() !== usuario._id.toString()) {
+      return res.status(403).json({ msg: "No puedes responder strikes de otros admins" });
+    }
+
+    // Actualizar el strike con la respuesta
+    strike.respuesta = respuesta.trim();
+    strike.respondido = true;
+    strike.fechaRespuesta = new Date();
+    await strike.save();
+
+    // Crear notificación para el usuario que hizo el strike
+    await HistorialNotificacion.create({
+      usuario: strike.de._id,
+      fromUser: usuario._id,
+      tipo: 'respuesta_strike',
+      titulo: 'Respuesta del Equipo de Soporte',
+      mensaje: `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${respuesta}"`
+    });
+
+    return res.status(200).json({
+      msg: "Respuesta enviada exitosamente",
+      strike,
+    });
+  } catch (error) {
+    console.error("Error al responder strike:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
 
 export {
   registro,
@@ -587,4 +648,5 @@ export {
   actualizarEvento,
   eliminarEvento,
   verMisStrikes,
+  responderStrike,
 };

@@ -75,23 +75,88 @@ const obtenerNotificaciones = async (req, res) => {
 const marcarNotificacionLeida = async (req, res) => {
   try {
     const { id } = req.params;
-    const usuarioId = req.userBDD._id;
+    const usuarioId = req.userBDD?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ msg: 'ID de notificación inválido' });
+    }
+
+    if (!usuarioId) {
+      return res.status(401).json({ msg: 'Usuario no autenticado' });
+    }
 
     const notificacion = await HistorialNotificacion.findOne({ _id: id, usuario: usuarioId });
-    if (!notificacion) return res.status(404).json({ msg: 'Notificación no encontrada' });
+    if (!notificacion) {
+      return res.status(404).json({ msg: 'Notificación no encontrada o no perteneciente al usuario' });
+    }
+
+    if (notificacion.leido) {
+      return res.status(200).json({ msg: 'Notificación ya estaba marcada como leída', notificacion });
+    }
 
     notificacion.leido = true;
     await notificacion.save();
 
-    return res.status(200).json({ msg: 'Notificación marcada como leída' });
+    return res.status(200).json({ msg: 'Notificación marcada como leída', notificacion });
   } catch (error) {
     console.error('Error marcando notificación como leída:', error);
-    return res.status(500).json({ msg: 'Error al marcar notificación' });
+    return res.status(500).json({ msg: 'Error al marcar notificación', error: error.message });
   }
 };
 
 const logout = (req, res) => {
   return res.status(200).json({ msg: 'Sesión cerrada. Guarda el token localmente removido en frontend.' });
+};
+
+const marcarNotificacionLeidaPorStrike = async (req, res) => {
+  try {
+    const { strikeId } = req.params;
+    const usuarioId = req.userBDD?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(strikeId)) {
+      return res.status(400).json({ msg: 'Strike ID inválido' });
+    }
+
+    const strike = await Strike.findById(strikeId);
+    if (!strike || strike.de.toString() !== usuarioId.toString()) {
+      return res.status(404).json({ msg: 'Strike no encontrado o no te pertenece' });
+    }
+
+    let notificacion = await HistorialNotificacion.findOne({
+      usuario: usuarioId,
+      tipo: 'respuesta_strike',
+      fromUser: strike.para,
+      mensaje: { $regex: strike.respuesta ? strike.respuesta.substring(0, 20) : '.*' }
+    });
+
+    if (!notificacion) {
+      // Si no existe notificación, la creamos como leída (para permitir marcarlo sin tener ID explicitamente)
+      notificacion = await HistorialNotificacion.create({
+        usuario: usuarioId,
+        fromUser: strike.para,
+        tipo: 'respuesta_strike',
+        titulo: 'Respuesta del Equipo de Soporte',
+        mensaje: strike.respuesta
+          ? `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${strike.respuesta}"`
+          : 'El equipo de soporte de Amikuna respondió tu solicitud.',
+        leido: true
+      });
+
+      return res.status(200).json({ msg: 'Notificación creada y marcada como leída', notificacion });
+    }
+
+    if (notificacion.leido) {
+      return res.status(200).json({ msg: 'Notificación ya estaba marcada como leída', notificacion });
+    }
+
+    notificacion.leido = true;
+    await notificacion.save();
+
+    return res.status(200).json({ msg: 'Notificación marcada como leída', notificacion });
+  } catch (error) {
+    console.error('Error marcando notificación por strike:', error);
+    return res.status(500).json({ msg: 'Error al marcar notificación por strike', error: error.message });
+  }
 };
 
 const completarPerfil = async (req, res) => {
@@ -825,6 +890,25 @@ const enviarStrike = async (req, res) => {
   }
 };
 
+const verMisStrikes = async (req, res) => {
+  try {
+    const usuarioId = req.userBDD._id;
+
+    const strikes = await Strike.find({ de: usuarioId })
+      .populate('para', 'nombre apellido email')
+      .sort({ fecha: -1 })
+      .lean();
+
+    res.status(200).json({ 
+      msg: "Consulta realizada exitosamente",
+      strikes 
+    });
+  } catch (error) {
+    console.error("Error al obtener strikes:", error);
+    res.status(500).json({ msg: "Error al obtener tus quejas/sugerencias" });
+  }
+};
+
 
 export { 
   completarPerfil,
@@ -841,12 +925,14 @@ export {
   rechazarAsistencia,
   obtenerNotificaciones,
   marcarNotificacionLeida,
+  marcarNotificacionLeidaPorStrike,
   logout,
   crearAporte,
   iniciarChat,
   enviarMensaje,
   obtenerMensajes,
   enviarStrike,
-  obtenerHistorialChatbot
+  obtenerHistorialChatbot,
+  verMisStrikes
 }
 

@@ -1,7 +1,7 @@
 import {Router} from 'express'
 import { comprobarTokenPasword, confirmarMail, crearNuevoPassword, recuperarPassword, registro, 
     cambiarPasswordAdmin, generarNuevaPasswordAdmin, login, perfil, logout, actualizarPerfilAdmin, listarEstudiantes, 
-    eliminarEstudiante, crearEvento, obtenerEventosAdmin, actualizarEvento, eliminarEvento, verMisStrikes} 
+    eliminarEstudiante, crearEvento, obtenerEventosAdmin, actualizarEvento, eliminarEvento, verMisStrikes, responderStrike} 
 from '../controllers/admin_controllers.js'
 import { verificarTokenJWT } from '../middlewares/JWT.js'
 
@@ -47,6 +47,9 @@ router.delete('/eliminar-evento/:id' , verificarTokenJWT, eliminarEvento);
 
 // Ver los strikes de los usuarios 
 router.get('/mis-strikes', verificarTokenJWT, verMisStrikes);
+
+// Responder a un strike (crear respuesta y notificación)
+router.post('/responder-strike/:strikeId', verificarTokenJWT, responderStrike);
 
 
 export default router

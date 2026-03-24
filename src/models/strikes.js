@@ -22,6 +22,20 @@ const strikeSchema = new mongoose.Schema({
     trim: true,
     maxlength: 1000
   },
+  respuesta: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+    default: null
+  },
+  respondido: {
+    type: Boolean,
+    default: false
+  },
+  fechaRespuesta: {
+    type: Date,
+    default: null
+  },
   fecha: {
     type: Date,
     default: Date.now,
