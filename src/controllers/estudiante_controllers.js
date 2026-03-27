@@ -618,6 +618,42 @@ const obtenerEventos = async (req, res) => {
   }
 };
 
+const obtenerMisEventos = async (req, res) => {
+  try {
+    const userId = req.userBDD._id;
+
+    const eventosRaw = await Evento.find({ activo: true, asistentes: userId })
+      .populate('asistentes', 'nombre apellido imagenPerfil email')
+      .populate('noAsistiran', 'nombre apellido imagenPerfil email')
+      .populate('creador', 'nombre apellido email')
+      .select('-__v -createdAt -updatedAt')
+      .lean();
+
+    const eventos = eventosRaw.map(evento => ({
+      ...evento,
+      _id: evento._id.toString(),
+      asistentes: Array.isArray(evento.asistentes) ? evento.asistentes.map(a => ({
+        _id: a._id.toString(),
+        nombre: a.nombre,
+        apellido: a.apellido,
+        email: a.email,
+        imagenPerfil: a.imagenPerfil
+      })) : [],
+      noAsistiran: Array.isArray(evento.noAsistiran) ? evento.noAsistiran.map(n => ({
+        _id: n._id.toString(),
+        nombre: n.nombre,
+        apellido: n.apellido,
+        email: n.email,
+        imagenPerfil: n.imagenPerfil
+      })) : []
+    }));
+
+    res.status(200).json(eventos);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: 'Error al obtener mis eventos' });
+  }
+};
 
 
 const confirmarAsistencia = async (req, res) => {
@@ -976,11 +1012,12 @@ export {
   eliminarFotoGaleria,
   reemplazarFotoGaleria,
   chatEstudiante,
-  obtenerPerfilCompleto, 
+  obtenerPerfilCompleto,
   listarPotencialesMatches,
   seguirUsuario,
   listarMatches,
   obtenerEventos,
+  obtenerMisEventos,
   confirmarAsistencia,
   rechazarAsistencia,
   obtenerNotificaciones,

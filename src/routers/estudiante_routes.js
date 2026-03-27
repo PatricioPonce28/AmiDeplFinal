@@ -1,6 +1,6 @@
 import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
-    obtenerEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
+    obtenerEventos, obtenerMisEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
     crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
     reportarUsuarioChat
   } from '../controllers/estudiante_controllers.js'
@@ -36,6 +36,8 @@ router.get("/matches", verificarTokenJWT, perfilCompleto, listarPotencialesMatch
 
 // Ruta para obtener los eventos creados
 router.get("/ver-eventos", verificarTokenJWT, perfilCompleto, obtenerEventos);
+// Ver eventos a los que el estudiante está inscrito + asistentes de cada evento
+router.get("/mis-eventos", verificarTokenJWT, perfilCompleto, obtenerMisEventos);
 
 // Asistir al evento 
 router.post("/asistir/:idEvento", verificarTokenJWT, confirmarAsistencia);
