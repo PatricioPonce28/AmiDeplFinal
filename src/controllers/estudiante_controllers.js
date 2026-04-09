@@ -58,6 +58,30 @@ const crearNotificacion = async ({ usuarioId, fromUserId = null , tipo, titulo, 
   }
 };
 
+const crearChatMatch = async (usuarioAId, usuarioBId, io) => {
+  try {
+    const sortedIds = [usuarioAId.toString(), usuarioBId.toString()].sort();
+    let chat = await Chat.findOne({ participantes: sortedIds });
+    if (!chat) {
+      chat = await Chat.create({ participantes: sortedIds, mensajes: [] });
+      if (io) {
+        io.to(usuarioAId.toString()).emit('chat:created', {
+          chatId: chat._id,
+          otherUserId: usuarioBId
+        });
+        io.to(usuarioBId.toString()).emit('chat:created', {
+          chatId: chat._id,
+          otherUserId: usuarioAId
+        });
+      }
+    }
+    return chat;
+  } catch (error) {
+    console.error('Error creando chat de match:', error);
+    throw error;
+  }
+};
+
 const obtenerNotificaciones = async (req, res) => {
   try {
     const usuarioId = req.userBDD._id;
@@ -497,7 +521,7 @@ const seguirUsuario = async (req, res) => {
     if (!otro) return res.status(404).json({ msg: "Usuario no encontrado" });
 
     // Lógica de seguir/dejar de seguir (existente)
-    const yaLoSigo = yo.siguiendo.includes(idSeguido);
+    const yaLoSigo = yo.siguiendo.some(id => id.toString() === idSeguido);
     if (yaLoSigo) {
       yo.siguiendo.pull(idSeguido);
       otro.seguidores.pull(yoId);
@@ -510,7 +534,7 @@ const seguirUsuario = async (req, res) => {
       otro.seguidores.push(yoId);
       
       // Agregar a perfiles vistos
-      if (!yo.perfilesVistos.includes(idSeguido)) {
+      if (!yo.perfilesVistos.some(id => id.toString() === idSeguido)) {
         yo.perfilesVistos.push(idSeguido);
       }
 
@@ -526,11 +550,11 @@ const seguirUsuario = async (req, res) => {
 
     // Nuevo: Sistema de matches automáticos
     let huboMatch = false;
-    if (!yaLoSigo && otro.siguiendo.includes(yoId)) {
-      if (!yo.matches.includes(idSeguido)) {
+    if (!yaLoSigo && otro.siguiendo.some(id => id.toString() === yoId.toString())) {
+      if (!yo.matches.some(id => id.toString() === idSeguido)) {
         yo.matches.push(idSeguido);
       }
-      if (!otro.matches.includes(yoId)) {
+      if (!otro.matches.some(id => id.toString() === yoId.toString())) {
         otro.matches.push(yoId);
       }
       huboMatch = true;
@@ -548,14 +572,13 @@ const seguirUsuario = async (req, res) => {
         titulo: '¡Nuevo match!',
         mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? 'alguien'}.`
       });
-
-      // Opcional: Crear chat (si tienes esta función)
-      if (req.io) {
-        await guardarMatch(yoId, idSeguido, req.io);
-      }
     }
 
     await Promise.all([yo.save(), otro.save()]);
+
+    if (huboMatch && req.io) {
+      await crearChatMatch(yoId, idSeguido, req.io);
+    }
 
     // Respuesta mejorada
     return res.status(200).json({

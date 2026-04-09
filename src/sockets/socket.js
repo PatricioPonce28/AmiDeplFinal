@@ -46,8 +46,8 @@ export const initSocket = (server) => {
           participantes: socket.user._id
         });
         if (!chat) return;
-        socket.join(chatId.toString());
-        console.log(`Usuario ${socket.user._id} se unió a sala ${chatId}`);
+        socket.join(`chat_${chatId}`);
+        console.log(`Usuario ${socket.user._id} se unió a sala chat_${chatId}`);
       } catch (error) {
         console.error('Error al unirse al chat:', error);
       }

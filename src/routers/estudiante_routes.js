@@ -47,7 +47,7 @@ router.post("/no-asistir/:idEvento", verificarTokenJWT, rechazarAsistencia);
 
 // Probar Estos 3 endpoitns cuando el Jhonn me siga
 // Endpoint clave y genera el match
-router.post("/seguir/:idSeguido", verificarTokenJWT, perfilCompleto, seguirUsuario);
+router.post("/seguir/:idSeguido", verificarTokenJWT, perfilCompleto, injectIO, seguirUsuario);
 
 // Listar Matches
 router.get("/listarmatches", verificarTokenJWT, perfilCompleto, listarMatches);
