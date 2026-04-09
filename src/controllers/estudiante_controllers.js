@@ -913,7 +913,7 @@ const reportarUsuarioChat = async (req, res) => {
       return res.status(400).json({ msg: 'No se pudo identificar al usuario reportado' });
     }
 
-    const admin = await users.findOne({ correo: 'admin@epn.edu.ec' });
+    const admin = await users.findOne({ email: 'admin@epn.edu.ec' });
     if (!admin) {
       return res.status(500).json({ msg: 'Administrador no encontrado en el sistema' });
     }
@@ -951,7 +951,7 @@ const   enviarStrike = async (req, res) => {
     const { tipo, razon } = req.body;
 
     // Buscar el ID del admin quemado
-    const admin = await users.findOne({ correo: 'admin@epn.edu.ec' });
+    const admin = await users.findOne({ email: 'admin@epn.edu.ec' });
 
     if (!admin) {
       return res.status(500).json({ msg: 'Administrador no encontrado en el sistema' });

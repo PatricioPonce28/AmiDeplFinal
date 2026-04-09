@@ -6,8 +6,8 @@ import Evento from "../models/Evento.js";
 import cloudinary from "cloudinary";
 import fs from "fs-extra";
 import Strike from "../models/strikes.js";
-import Chat from '../models/chats.js';
-import HistorialNotificacion from '../models/HistorialNotificacion.js';
+import Chat from "../models/chats.js";
+import HistorialNotificacion from "../models/HistorialNotificacion.js";
 
 //nuevas importaciones para admin
 import supabase from "../config/supabase.js";
@@ -45,26 +45,24 @@ const registro = async (req, res) => {
       email,
       options: {
         emailRedirectTo: confirmationLink,
-        data: { nombre, apellido }
-      }
+        data: { nombre, apellido },
+      },
     });
 
     if (error) throw error;
 
     console.log("✅ Email de confirmación enviado:", email);
-
   } catch (error) {
     console.error("❌ Error enviando correo:", error.message);
     return res.status(500).json({
-      msg: "Usuario registrado pero hubo un problema al enviar el correo."
+      msg: "Usuario registrado pero hubo un problema al enviar el correo.",
     });
   }
 
   return res.status(200).json({
-    msg: "Revisa tu correo electrónico para confirmar tu cuenta"
+    msg: "Revisa tu correo electrónico para confirmar tu cuenta",
   });
 };
-
 
 const confirmarMail = async (req, res) => {
   const token = req.params.token;
@@ -92,13 +90,10 @@ const recuperarPassword = async (req, res) => {
   userBDD.token = token;
   await sendMailToRecoveryPassword(email, token);
   await userBDD.save();
-  res
-    .status(200)
-    .json({
-      msg: "Revisa tu correo electrónico para reestablecer tu contraseña",
-    });
+  res.status(200).json({
+    msg: "Revisa tu correo electrónico para reestablecer tu contraseña",
+  });
 };
-
 
 const comprobarTokenPasword = async (req, res) => {
   const { token } = req.params;
@@ -131,11 +126,9 @@ const crearNuevoPassword = async (req, res) => {
   userBDD.token = null;
   userBDD.password = await userBDD.encryptPassword(password);
   await userBDD.save();
-  res
-    .status(200)
-    .json({
-      msg: "Felicitaciones, ya puedes iniciar sesión con tu nuevo password",
-    });
+  res.status(200).json({
+    msg: "Felicitaciones, ya puedes iniciar sesión con tu nuevo password",
+  });
 };
 
 const cambiarPasswordAdmin = async (req, res) => {
@@ -170,11 +163,9 @@ const cambiarPasswordAdmin = async (req, res) => {
 
     const adminUser = await users.findOne({ email });
     if (!adminUser) {
-      return res
-        .status(404)
-        .json({
-          msg: "Ejecuta el script de creación de administrador primero",
-        });
+      return res.status(404).json({
+        msg: "Ejecuta el script de creación de administrador primero",
+      });
     }
 
     adminUser.password = await adminUser.encryptPassword(newPassword);
@@ -216,11 +207,9 @@ const generarNuevaPasswordAdmin = async (req, res) => {
     // Buscar al administrador (debe existir por tu script)
     const adminUser = await users.findOne({ email });
     if (!adminUser) {
-      return res
-        .status(404)
-        .json({
-          msg: "Administrador no encontrado. Ejecuta el script de creación primero.",
-        });
+      return res.status(404).json({
+        msg: "Administrador no encontrado. Ejecuta el script de creación primero.",
+      });
     }
 
     // Generar nueva contraseña (sin token)
@@ -264,11 +253,9 @@ const login = async (req, res) => {
       userBDD.confirmEmail === false &&
       userBDD.email !== "admin@epn.edu.ec"
     ) {
-      return res
-        .status(403)
-        .json({
-          msg: "Lo sentimos, debes confirmar tu cuenta antes de iniciar sesión",
-        });
+      return res.status(403).json({
+        msg: "Lo sentimos, debes confirmar tu cuenta antes de iniciar sesión",
+      });
     }
     const verficarPassword = await userBDD.matchPassword(password);
     if (!verficarPassword) {
@@ -317,7 +304,7 @@ const perfil = (req, res) => {
 };
 
 const logout = (req, res) => {
-  return res.status(200).json({ msg: 'Sesión cerrada exitosamente' });
+  return res.status(200).json({ msg: "Sesión cerrada exitosamente" });
 };
 
 const actualizarPerfilAdmin = async (req, res) => {
@@ -337,11 +324,9 @@ const actualizarPerfilAdmin = async (req, res) => {
   if (userBDD.email != email) {
     const userBDD = await users.findOne({ email });
     if (userBDDMail) {
-      return res
-        .status(404)
-        .json({
-          msg: `Lo sentimos, el email existe ya se encuentra registrado`,
-        });
+      return res.status(404).json({
+        msg: `Lo sentimos, el email existe ya se encuentra registrado`,
+      });
     }
   }
 
@@ -373,7 +358,7 @@ const listarEstudiantes = async (req, res) => {
     const estudiantes = await users
       .find({ rol: "estudiante" })
       .select(
-        "_id nombre apellido email fechaNacimiento createdAt imagenPerfil"
+        "_id nombre apellido email fechaNacimiento createdAt imagenPerfil",
       );
 
     res.status(200).json(estudiantes);
@@ -446,15 +431,15 @@ const crearEvento = async (req, res) => {
 
     await evento.save();
 
-    const estudiantes = await users.find({ rol: 'estudiante' }).select('_id');
-    const notificaciones = estudiantes.map(u => ({
+    const estudiantes = await users.find({ rol: "estudiante" }).select("_id");
+    const notificaciones = estudiantes.map((u) => ({
       usuario: u._id,
-      tipo: 'evento',
-      titulo: 'Nuevo evento disponible',
+      tipo: "evento",
+      titulo: "Nuevo evento disponible",
       mensaje: `El administrador creó un nuevo evento: ${titulo}`,
       leido: false,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     }));
     if (notificaciones.length) {
       await HistorialNotificacion.insertMany(notificaciones);
@@ -507,12 +492,12 @@ const actualizarEvento = async (req, res) => {
 const obtenerEventosAdmin = async (req, res) => {
   try {
     const eventosRaw = await Evento.find({ activo: true })
-      .populate('asistentes', 'nombre apellido')
+      .populate("asistentes", "nombre apellido")
       .select("-__v -createdAt -updatedAt -creador")
       .lean();
 
     // Transformamos para asegurar que _id es string
-    const eventos = eventosRaw.map(evento => ({
+    const eventos = eventosRaw.map((evento) => ({
       ...evento,
       _id: evento._id.toString(),
     }));
@@ -523,8 +508,6 @@ const obtenerEventosAdmin = async (req, res) => {
     res.status(500).json({ msg: "Error al obtener eventos" });
   }
 };
-
-
 
 const eliminarEvento = async (req, res) => {
   try {
@@ -551,11 +534,9 @@ const verMisStrikes = async (req, res) => {
     const usuario = req.userBDD;
 
     if (!usuario || usuario.rol !== "admin") {
-      return res
-        .status(403)
-        .json({
-          msg: "Acceso denegado: solo los administradores pueden ver estos datos.",
-        });
+      return res.status(403).json({
+        msg: "Acceso denegado: solo los administradores pueden ver estos datos.",
+      });
     }
 
     // Admin ve TODOS los strikes de todos los estudiantes
@@ -581,11 +562,9 @@ const responderStrike = async (req, res) => {
 
     // Validar que sea admin
     if (!usuario || usuario.rol !== "admin") {
-      return res
-        .status(403)
-        .json({
-          msg: "Acceso denegado: solo los administradores pueden responder strikes.",
-        });
+      return res.status(403).json({
+        msg: "Acceso denegado: solo los administradores pueden responder strikes.",
+      });
     }
 
     // Validar campos obligatorios
@@ -603,7 +582,9 @@ const responderStrike = async (req, res) => {
 
     // Verificar que el strike va dirigido al admin actual
     if (strike.para.toString() !== usuario._id.toString()) {
-      return res.status(403).json({ msg: "No puedes responder strikes de otros admins" });
+      return res
+        .status(403)
+        .json({ msg: "No puedes responder strikes de otros admins" });
     }
 
     // Actualizar el strike con la respuesta
@@ -616,9 +597,9 @@ const responderStrike = async (req, res) => {
     await HistorialNotificacion.create({
       usuario: strike.de._id,
       fromUser: usuario._id,
-      tipo: 'respuesta_strike',
-      titulo: 'Respuesta del Equipo de Soporte',
-      mensaje: `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${respuesta}"`
+      tipo: "respuesta_strike",
+      titulo: "Respuesta del Equipo de Soporte",
+      mensaje: `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${respuesta}"`,
     });
 
     return res.status(200).json({
@@ -634,46 +615,60 @@ const responderStrike = async (req, res) => {
 const obtenerDenunciaDetalle = async (req, res) => {
   try {
     const usuario = req.userBDD;
-    if (!usuario || usuario.rol !== 'admin') {
-      return res.status(403).json({ msg: 'Acceso denegado: solo administradores' });
+    if (!usuario || usuario.rol !== "admin") {
+      return res
+        .status(403)
+        .json({ msg: "Acceso denegado: solo administradores" });
     }
 
     const { strikeId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(strikeId)) {
-      return res.status(400).json({ msg: 'ID de strike inválido' });
+      return res.status(400).json({ msg: "ID de strike inválido" });
     }
 
     const strike = await Strike.findById(strikeId)
-      .populate('de', 'nombre apellido email')
-      .populate('usuarioReportado', 'nombre apellido email')
-      .populate('chat');
+      .populate("de", "nombre apellido email")
+      .populate("usuarioReportado", "nombre apellido email")
+      .populate({
+        path: "chat",
+        populate: {
+          path: "mensajes.emisor",
+          select: "nombre apellido email",
+        },
+      });
 
     if (!strike) {
-      return res.status(404).json({ msg: 'Strike no encontrado' });
+      return res.status(404).json({ msg: "Strike no encontrado" });
     }
 
     return res.status(200).json({ strike });
   } catch (error) {
-    console.error('Error al obtener detalle de denuncia:', error);
-    return res.status(500).json({ msg: 'Error interno al obtener detalle de denuncia' });
+    console.error("Error al obtener detalle de denuncia:", error);
+    return res
+      .status(500)
+      .json({ msg: "Error interno al obtener detalle de denuncia" });
   }
 };
 
 const eliminarMatchYChat = async (req, res) => {
   try {
     const usuario = req.userBDD;
-    if (!usuario || usuario.rol !== 'admin') {
-      return res.status(403).json({ msg: 'Acceso denegado: solo administradores' });
+    if (!usuario || usuario.rol !== "admin") {
+      return res
+        .status(403)
+        .json({ msg: "Acceso denegado: solo administradores" });
     }
 
     const { strikeId } = req.params;
     if (!mongoose.Types.ObjectId.isValid(strikeId)) {
-      return res.status(400).json({ msg: 'ID de strike inválido' });
+      return res.status(400).json({ msg: "ID de strike inválido" });
     }
 
     const strike = await Strike.findById(strikeId);
     if (!strike || !strike.usuarioReportado || !strike.chat) {
-      return res.status(404).json({ msg: 'Strike o datos asociados no encontrados' });
+      return res
+        .status(404)
+        .json({ msg: "Strike o datos asociados no encontrados" });
     }
 
     const chat = await Chat.findByIdAndDelete(strike.chat);
@@ -682,32 +677,33 @@ const eliminarMatchYChat = async (req, res) => {
       $pull: {
         matches: strike.usuarioReportado,
         siguiendo: strike.usuarioReportado,
-        seguidores: strike.usuarioReportado
-      }
+        seguidores: strike.usuarioReportado,
+      },
     });
 
     await users.findByIdAndUpdate(strike.usuarioReportado, {
       $pull: {
         matches: strike.de,
         siguiendo: strike.de,
-        seguidores: strike.de
-      }
+        seguidores: strike.de,
+      },
     });
 
-    strike.status = 'resuelto';
+    strike.status = "resuelto";
     await strike.save();
 
     return res.status(200).json({
-      msg: 'Match y chat eliminados con éxito',
+      msg: "Match y chat eliminados con éxito",
       chatEliminado: !!chat,
-      strike
+      strike,
     });
   } catch (error) {
-    console.error('Error eliminando match/chat:', error);
-    return res.status(500).json({ msg: 'Error interno al eliminar match y chat' });
+    console.error("Error eliminando match/chat:", error);
+    return res
+      .status(500)
+      .json({ msg: "Error interno al eliminar match y chat" });
   }
 };
-
 
 export {
   registro,
