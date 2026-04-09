@@ -865,7 +865,7 @@ const enviarMensaje = async (req, res) => {
         const ultimoMensaje = mensajeFinal.mensajes[mensajeFinal.mensajes.length - 1];
 
         if (req.io) {
-            req.io.to(chatId.toString()).emit('mensaje:nuevo', {
+            req.io.to(`chat_${chatId}`).emit('mensaje:nuevo', {
                 chatId,
                 mensaje: ultimoMensaje
             });
