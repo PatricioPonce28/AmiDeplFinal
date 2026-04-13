@@ -1,7 +1,7 @@
 import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, obtenerMisEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
-    crearAporte, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
+    crearOrdenPayPal, getPayPalToken, capturarPagoPayPal, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
     reportarUsuarioChat
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
@@ -58,8 +58,10 @@ router.post('/chat-con-match/:otroUserId', verificarTokenJWT, injectIO, iniciarC
 router.post("/chats/:chatId/mensajes", verificarTokenJWT, injectIO, enviarMensaje);
 // Obtener mensaje
 router.get("/chats/:chatId/ver-mensajes", verificarTokenJWT, injectIO, obtenerMensajes);
+
 // Pasarela para aporte 
-router.post("/aportes", verificarTokenJWT, crearAporte);
+router.post("/aportes/crear-orden", verificarTokenJWT, crearOrdenPayPal);
+router.post("/aportes/capturar-pago", verificarTokenJWT, capturarPagoPayPal);
 
 // Logout
 router.post('/logout', verificarTokenJWT, logout);

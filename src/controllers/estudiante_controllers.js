@@ -3,18 +3,14 @@ import users from '../models/users.js';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs-extra';
 import { generarConRetry, getModel } from "../helpers/gemini_helper.js";
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import Evento from '../models/Evento.js';
-import { Stripe } from "stripe"
 import Chat from '../models/chats.js';
 import Aporte from '../models/Aporte.js';
 import { injectIO } from "../middlewares/injectIO.js";
 import Strike from '../models/strikes.js';
 import HistorialConChatbot from "../models/historialConChatbot.js";
 import HistorialNotificacion from '../models/HistorialNotificacion.js';
-
-const stripe = new Stripe(`${process.env.STRIPE_PRIVATE_KEY}`)
+import fetch from "node-fetch"
 
 const getCloudinaryPublicIdFromUrl = (url) => {
   if (!url || typeof url !== 'string') return null;
@@ -377,13 +373,29 @@ const chatEstudiante = async (req, res) => {
     const model = getModel();
 
     const prompt = `
-Eres un asistente amigable en una app de citas llamada Amikuna. 
-Ayudas a los usuarios a iniciar conversaciones, mejorar sus perfiles y dar consejos de relaciones de manera divertida y respetuosa. 
+Eres un asistente amigable en una aplicación que promueve la interacción social llamada Amikuna. 
+Ayudas a los usuarios a iniciar conversaciones, respondes todo tipo de preguntas y ayudas en base a tu código fuente. 
 Responde siempre con un tono informal pero con buena ortografía.
-Recuerda que eres un chatbot y no puedes recibir mensajes de voz, imágenes o videos, solo texto y debes
-responder de esa manera sin la recepción de lo anteriormente mencionado solo texto (si puedes usar emojis).
+Recuerda que eres un chatbot y no puedes recibir mensajes de voz, imágenes o videos, solo texto y debes (si puedes usar emojis).
 Usa lenguaje natural, que no parezca escrito por una IA.
 Usa jerga y expresiones de Ecuador.
+Además, te voy a mapear la aplicación por si alguien no sabe como funciona y guíes por si no saben como funciona la aplicación web:
+Al principio cuando te registras hay un formulario que debes llenar con tu información personal sino no puedes ver a otros usuarios.
+En la parte izquierda verás "Tu perfil" donde está esa información que llenaste junto con tus seguidores y seguidos bajo esta parte 
+hay una galería de las fotos que has subido. 
+En la parte superior central tienes opciones como: Perfil el cual te ayuda a cambiar la información personal del formulario.
+Al lado de eso encontamos Fotos donde puedes subir, modificar, eliminar fotos de una galería (la que mencionamos hace un momento). 
+A un lado hay Notificaciones que te llegan cuando una persona te sigue, cuando el administrador crea eventos, cuando una persona te sigue de vuelta
+se crea el "match" y automáticamente se genera un chat para chatear con esa persona. Al lado derecho hay una parte llamada Chatbot donde se abre esta interfaz
+donde vas a leer el mensaje del usuario más adelante. Al lado derecho también dice "Feedback" donde puedes enviar quejas o sugerencias al administrador 
+y ver las enviadas junto con la respuesta del admin. A un lado de eso dice salir para cerrar la sesión.
+En la parte superior derecha encuentras los eventos creados por el administrador y un pequeño botón parte tienes "Mis eventos" y se ve los eventos 
+a los que accediste ir. En la parte central vas a ver los candidatos a match, es decir, personas que cumplen con tus preferencias y que no has visto antes para que puedas
+seguirlos o no seguirlos. Una vez que sigues a alguien esa persona recibe la notificación y puede seguirte de vuelta y si eso sucede se abre automáticamente 
+un chat que puedes ver en la parte derecha de la pantalla donde dice "Matches con quien chatear" y ahí pueden enviarse mensajes.
+Además, el chat tiene una banderita que dice "Reportar Usuario" y si te incomodó el chat debes enviar la denuncia y se eliminará el match una vez que el administrador 
+vea y decida que hacer (Por lo general una denuncia rompe el match y no puedes ver a esa persona de nuevo en la app). 
+En la parte de aportes se puede hacer un pago para ayudar a que AmiKuna mejore, el concepto es Aporte voluntario y es para gastarlo en mejorar la aplicación.
 
 Mensaje del usuario: "${mensaje}"
 `;
@@ -733,40 +745,119 @@ const rechazarAsistencia = async (req, res) => {
 
 /// NADA DOCUMENTADO DE AQUÍ EN ADELANTE PILAS
 
-const crearAporte = async (req, res) => {
+const getPayPalToken = async () => {
+  const credentials = Buffer.from(
+    `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`
+  ).toString("base64");
+
+  const res = await fetch(`${process.env.PAYPAL_URL}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+
+  const data = await res.json();
+  return data.access_token;
+};
+
+const crearOrdenPayPal = async (req, res) => {
   try {
-    const { amount, paymentMethodId } = req.body;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ ok: false, mensaje: "Monto inválido" });
+    }
+
+    const token = await getPayPalToken();
+
+    const response = await fetch(`${process.env.PAYPAL_URL}/v2/checkout/orders`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [{
+          amount: {
+            currency_code: "USD",
+            value: Number(amount).toFixed(2),
+          },
+          description: "Aporte para Amikuna",
+        }],
+        application_context: {
+          brand_name: "Amikuna",
+          user_action: "PAY_NOW",
+        }
+      }),
+    });
+
+    const order = await response.json();
+
+    if (!order.id) {
+      return res.status(500).json({ ok: false, mensaje: "Error creando orden en PayPal", detalle: order });
+    }
+
+    res.status(201).json({ ok: true, orderId: order.id });
+
+  } catch (error) {
+    console.error("Error creando orden PayPal:", error);
+    res.status(500).json({ ok: false, mensaje: error.message });
+  }
+};
+
+const capturarPagoPayPal = async (req, res) => {
+  try {
+    const { orderId, amount } = req.body;
     const userId = req.userBDD._id;
 
-    // 1. Crear intento de pago en Stripe
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount * 100, // Stripe trabaja en centavos
-      currency: "usd",
-      payment_method: paymentMethodId,
-      confirm: true,
-      return_url: "https://amikuna.vercel.app/user/dashboard",
-    });
+    if (!orderId || !amount) {
+      return res.status(400).json({ ok: false, mensaje: "orderId y amount son requeridos" });
+    }
 
-    // 2. Guardar en la base de datos
-    const nuevoAporte = await Aporte.create({
+    const token = await getPayPalToken();
+
+    const response = await fetch(
+      `${process.env.PAYPAL_URL}/v2/checkout/orders/${orderId}/capture`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const capture = await response.json();
+
+    if (capture.status !== "COMPLETED") {
+      await Aporte.create({
+        userId,
+        amount,
+        paypalOrderId: orderId,
+        status: "fallido",
+      });
+      return res.status(400).json({ ok: false, mensaje: "Pago no completado", estado: capture.status });
+    }
+
+    await Aporte.create({
       userId,
       amount,
-      paymentIntentId: paymentIntent.id,
-      status: paymentIntent.status === "succeeded" ? "pagado" : "pendiente",
+      paypalOrderId: orderId,
+      status: "pagado",
     });
 
-    res.status(201).json({
+    res.status(200).json({
       ok: true,
-      mensaje: "Aporte creado exitosamente.",
-      aporte: nuevoAporte,
+      mensaje: "¡Aporte realizado con éxito! Gracias por apoyar Amikuna.",
     });
+
   } catch (error) {
-    console.error("Error al procesar aporte:", error);
-    res.status(500).json({
-      ok: false,
-      mensaje: "Error al crear el aporte.",
-      error: error.message,
-    });
+    console.error("Error capturando pago PayPal:", error);
+    res.status(500).json({ ok: false, mensaje: error.message });
   }
 };
 
@@ -1047,7 +1138,9 @@ export {
   marcarNotificacionLeida,
   marcarNotificacionLeidaPorStrike,
   logout,
-  crearAporte,
+  getPayPalToken,
+  crearOrdenPayPal,
+  capturarPagoPayPal,
   iniciarChat,
   enviarMensaje,
   obtenerMensajes,
