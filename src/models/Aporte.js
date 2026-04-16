@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const AporteSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Usuario",
+    ref: "User",
     required: true,
   },
   amount: {

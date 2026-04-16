@@ -23,7 +23,6 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-fileupload": "^1.5.1",
-    "express-session": "^1.18.2",
     "fs-extra": "^11.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "5.5",
@@ -31,8 +30,6 @@
     "morgan": "^1.10.0",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.13",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
     "resend": "^6.9.3",
     "socket.io": "^4.8.1",
     "stripe": "^18.1.1"
