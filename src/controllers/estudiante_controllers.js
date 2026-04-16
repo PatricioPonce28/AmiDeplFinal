@@ -183,19 +183,47 @@ const completarPerfil = async (req, res) => {
   try {
     const id = req.userBDD._id;
 
-    // Extraer y normalizar datos (ajustado para FormData)
     const nombre = req.body.nombre?.trim();
     const biografia = req.body.biografia?.trim();
     const intereses = req.body.intereses?.split(',').map(i => i.trim()) || [];
     const genero = req.body.genero?.toLowerCase();
     const orientacion = req.body.orientacion?.toLowerCase();
     const fechaNacimiento = req.body.fechaNacimiento;
-    const ciudad = req.body['ubicacion[ciudad]']?.trim(); 
-    const pais = req.body['ubicacion[pais]']?.trim(); 
+    const ciudad = req.body['ubicacion[ciudad]']?.trim();
+    const pais = req.body['ubicacion[pais]']?.trim();
 
     // Validar campos obligatorios
     if (!nombre || !biografia || !fechaNacimiento || !genero || !orientacion || intereses.length === 0 || !ciudad || !pais) {
       return res.status(400).json({ msg: "Por favor, completa todos los campos obligatorios." });
+    }
+
+    // Validar nombre sin espacios
+    if (/\s/.test(nombre)) {
+      return res.status(400).json({ msg: "El nombre no debe contener espacios." });
+    }
+
+    // Validar ciudad y país sin espacios
+    if (/\s/.test(ciudad)) {
+      return res.status(400).json({ msg: "La ciudad no debe contener espacios." });
+    }
+    if (/\s/.test(pais)) {
+      return res.status(400).json({ msg: "El país no debe contener espacios." });
+    }
+
+    // Validar mayoría de edad (18 años)
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacimiento);
+    const edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const cumplioEsteAnio =
+      hoy.getMonth() > nacimiento.getMonth() ||
+      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() >= nacimiento.getDate());
+    const edadReal = cumplioEsteAnio ? edad : edad - 1;
+
+    if (isNaN(nacimiento.getTime())) {
+      return res.status(400).json({ msg: "Fecha de nacimiento inválida." });
+    }
+    if (edadReal < 18) {
+      return res.status(400).json({ msg: "Debes tener al menos 18 años para usar Amikuna." });
     }
 
     // Buscar al usuario
@@ -209,10 +237,9 @@ const completarPerfil = async (req, res) => {
         folder: 'Estudiantes'
       });
       usuario.imagenPerfil = resultado.secure_url;
-      // await fs.unlink(file); // borrar imagen temporal (comentado porque a veces da problemas)
     }
 
-    // Subir imágenes de galería (puede venir como un solo archivo o un arreglo)
+    // Subir imágenes de galería
     const galeriaFiles = req.files?.imagenesGaleria || req.files?.galeria;
     if (galeriaFiles) {
       const uploads = await uploadFilesToCloudinary(galeriaFiles);
@@ -222,17 +249,13 @@ const completarPerfil = async (req, res) => {
         : urls;
     }
 
-    // Actualizar campos
     usuario.nombre = nombre;
     usuario.biografia = biografia;
     usuario.intereses = intereses;
     usuario.genero = genero;
     usuario.orientacion = orientacion;
     usuario.fechaNacimiento = fechaNacimiento;
-    // Asignar la ubicación correctamente
     usuario.ubicacion = { ciudad, pais };
-
-    // Por si no están inicializados
     usuario.activo = true;
     usuario.matches = usuario.matches || [];
     usuario.seguidores = usuario.seguidores || [];
@@ -241,10 +264,8 @@ const completarPerfil = async (req, res) => {
 
     await usuario.save();
 
-    // AÑADIDO: Actualizar la sesión con el usuario recién guardado
     req.userBDD = usuario;
 
-    // Limpiar respuesta
     const { password, token, __v, createdAt, updatedAt, ...perfil } = usuario.toObject();
 
     res.status(200).json({

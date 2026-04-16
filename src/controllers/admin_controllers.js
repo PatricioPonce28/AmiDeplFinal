@@ -15,8 +15,6 @@ import Tesoreria from "../models/Tesoreria.js";
 import Aporte from "../models/Aporte.js";
 import crypto from "crypto";
 
-// registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
-
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
 
@@ -77,9 +75,6 @@ const confirmarMail = async (req, res) => {
   await userBDD.save();
   res.status(200).json({ msg: "Token confirmado, ya puedes iniciar sesión" });
 };
-
-
-
 
 const recuperarPassword = async (req, res) => {
   const { email } = req.body;
@@ -169,39 +164,19 @@ const crearNuevoPassword = async (req, res) => {
 
 const cambiarPasswordAdmin = async (req, res) => {
   try {
-    const { email, masterKey, securityAnswer, newPassword, confirmPassword } =
-      req.body;
+    const { newPassword, confirmPassword } = req.body;
 
-    // Validaciones
-    if (
-      !email ||
-      !masterKey ||
-      !securityAnswer ||
-      !newPassword ||
-      !confirmPassword
-    ) {
+    if (!newPassword || !confirmPassword) {
       return res.status(400).json({ msg: "Todos los campos son obligatorios" });
     }
-    if (email !== "admin@epn.edu.ec") {
-      return res
-        .status(403)
-        .json({ msg: "Acceso denegado. Solo para administradores" });
-    }
-    if (masterKey !== process.env.ADMIN_MASTER_KEY) {
-      return res.status(403).json({ msg: "Clave maestra incorrecta" });
-    }
-    if (securityAnswer !== "2025-A") {
-      return res.status(403).json({ msg: "Respuesta de seguridad incorrecta" });
-    }
+
     if (newPassword !== confirmPassword) {
       return res.status(400).json({ msg: "Las contraseñas no coinciden" });
     }
 
-    const adminUser = await users.findOne({ email });
+    const adminUser = await users.findOne({ correo: "admin@epn.edu.ec" });
     if (!adminUser) {
-      return res.status(404).json({
-        msg: "Ejecuta el script de creación de administrador primero",
-      });
+      return res.status(404).json({ msg: "Administrador no encontrado" });
     }
 
     adminUser.password = await adminUser.encryptPassword(newPassword);
