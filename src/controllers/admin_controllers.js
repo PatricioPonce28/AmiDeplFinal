@@ -9,8 +9,9 @@ import Strike from "../models/strikes.js";
 import Chat from "../models/chats.js";
 import HistorialNotificacion from "../models/HistorialNotificacion.js";
 
-//nuevas importaciones para admin
+//nuevas importaciones para correos reemplaxo de nodemailer por supabase
 import supabase from "../config/supabase.js";
+import crypto from "crypto";
 
 // registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
 
@@ -75,60 +76,93 @@ const confirmarMail = async (req, res) => {
   res.status(200).json({ msg: "Token confirmado, ya puedes iniciar sesión" });
 };
 
+
+
+
 const recuperarPassword = async (req, res) => {
   const { email } = req.body;
-  if (Object.values(req.body).includes(""))
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, debes llenar todos los campos" });
+
+  if (!email) {
+    return res.status(400).json({ msg: "El correo es obligatorio" });
+  }
+
   const userBDD = await users.findOne({ email });
-  if (!userBDD)
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, el usuario no se encuentra registrado" });
-  const token = userBDD.crearToken();
+  if (!userBDD) {
+    return res.status(404).json({ msg: "Usuario no registrado" });
+  }
+
+  //  Generar token seguro
+  const token = crypto.randomBytes(32).toString("hex");
+
   userBDD.token = token;
-  await sendMailToRecoveryPassword(email, token);
+  userBDD.tokenExpira = Date.now() + 1000 * 60 * 60; // 1 hora
   await userBDD.save();
-  res.status(200).json({
-    msg: "Revisa tu correo electrónico para reestablecer tu contraseña",
-  });
+
+  //  Link REAL de tu sistema
+  const recoveryLink = `${process.env.URL_FRONTEND}/nuevopassword/${token}`;
+
+  try {
+    //  Usamos Supabase SOLO para disparar el correo
+    await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: recoveryLink,
+      },
+    });
+
+    return res.status(200).json({
+      msg: "Revisa tu correo para recuperar tu contraseña",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      msg: "Error enviando correo",
+    });
+  }
 };
 
 const comprobarTokenPasword = async (req, res) => {
   const { token } = req.params;
-  const userBDD = await users.findOne({ token });
-  if (userBDD?.token !== req.params.token)
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, no se puede validar la cuenta" });
-  await userBDD.save();
-  res
-    .status(200)
-    .json({ msg: "Token confirmado, ya puedes crear tu nuevo password" });
+
+  const userBDD = await users.findOne({
+    token,
+    tokenExpira: { $gt: Date.now() },
+  });
+
+  if (!userBDD) {
+    return res.status(404).json({ msg: "Token inválido o expirado" });
+  }
+
+  res.json({ msg: "Token válido" });
 };
 
 const crearNuevoPassword = async (req, res) => {
+  const { token } = req.params;
   const { password, confirmpassword } = req.body;
-  if (Object.values(req.body).includes(""))
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, debes llenar todos los campos" });
-  if (password != confirmpassword)
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, los passwords no coinciden" });
-  const userBDD = await users.findOne({ token: req.params.token });
-  if (userBDD?.token !== req.params.token)
-    return res
-      .status(404)
-      .json({ msg: "Lo sentimos, no se puede validar la cuenta" });
-  userBDD.token = null;
-  userBDD.password = await userBDD.encryptPassword(password);
-  await userBDD.save();
-  res.status(200).json({
-    msg: "Felicitaciones, ya puedes iniciar sesión con tu nuevo password",
+
+  if (!password || !confirmpassword) {
+    return res.status(400).json({ msg: "Todos los campos son obligatorios" });
+  }
+
+  if (password !== confirmpassword) {
+    return res.status(400).json({ msg: "Las contraseñas no coinciden" });
+  }
+
+  const userBDD = await users.findOne({
+    token,
+    tokenExpira: { $gt: Date.now() },
   });
+
+  if (!userBDD) {
+    return res.status(404).json({ msg: "Token inválido o expirado" });
+  }
+
+  userBDD.password = await userBDD.encryptPassword(password);
+  userBDD.token = null;
+  userBDD.tokenExpira = null;
+
+  await userBDD.save();
+
+  res.json({ msg: "Contraseña actualizada correctamente" });
 };
 
 const cambiarPasswordAdmin = async (req, res) => {
