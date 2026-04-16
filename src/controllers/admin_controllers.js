@@ -15,6 +15,40 @@ import Tesoreria from "../models/Tesoreria.js";
 import Aporte from "../models/Aporte.js";
 import crypto from "crypto";
 
+const validarHora = (hora) => {
+  if (!hora || typeof hora !== 'string') return false;
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
+};
+
+const validarFechaHoraEvento = (fecha, hora) => {
+  if (!fecha || !hora) {
+    return 'La fecha y hora del evento son obligatorias.';
+  }
+
+  if (!validarHora(hora)) {
+    return 'La hora debe tener el formato HH:mm válido.';
+  }
+
+  const fechaHoraEvento = new Date(`${fecha}T${hora}:00`);
+  if (Number.isNaN(fechaHoraEvento.getTime())) {
+    return 'Fecha o hora del evento inválida.';
+  }
+
+  const ahora = new Date();
+  const fechaEventoSolo = new Date(fechaHoraEvento.toDateString());
+  const hoySolo = new Date(ahora.toDateString());
+
+  if (fechaEventoSolo < hoySolo) {
+    return 'No se pueden crear eventos con fecha anterior a hoy.';
+  }
+
+  if (fechaEventoSolo.getTime() === hoySolo.getTime() && fechaHoraEvento < ahora) {
+    return 'No se pueden crear eventos con hora anterior a la hora actual.';
+  }
+
+  return null;
+};
+
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
 
@@ -38,7 +72,6 @@ const registro = async (req, res) => {
   newUser.crearToken();
   await newUser.save();
 
-  // Enviar correo via Supabase — NUEVO
   try {
     const confirmationLink = `${process.env.URL_FRONTEND}/confirmar/${newUser.token}`;
 
@@ -363,6 +396,11 @@ const crearEvento = async (req, res) => {
       return res.status(400).json({ msg: "Todos los campos son obligatorios" });
     }
 
+    const errorValidacion = validarFechaHoraEvento(fecha, hora);
+    if (errorValidacion) {
+      return res.status(400).json({ msg: errorValidacion });
+    }
+
     let imagen = "";
 
     if (req.files?.imagen) {
@@ -418,6 +456,15 @@ const actualizarEvento = async (req, res) => {
 
     if (!evento) {
       return res.status(404).json({ msg: "Evento no encontrado" });
+    }
+
+    if (fecha || hora) {
+      const fechaParaValidar = fecha ? fecha : evento.fecha.toISOString().split("T")[0];
+      const horaParaValidar = hora ? hora : evento.hora;
+      const errorValidacion = validarFechaHoraEvento(fechaParaValidar, horaParaValidar);
+      if (errorValidacion) {
+        return res.status(400).json({ msg: errorValidacion });
+      }
     }
 
     // Actualiza campos si vienen en el body
@@ -478,6 +525,21 @@ const eliminarEvento = async (req, res) => {
 
     evento.activo = false;
     await evento.save();
+
+    const asistentes = Array.isArray(evento.asistentes) ? evento.asistentes : [];
+    if (asistentes.length > 0) {
+      const notificaciones = asistentes.map((usuarioId) => ({
+        usuario: usuarioId,
+        fromUser: req.userBDD?._id || null,
+        tipo: 'evento',
+        titulo: 'Evento cancelado',
+        mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
+        leido: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      await HistorialNotificacion.insertMany(notificaciones);
+    }
 
     res.status(200).json({ msg: "Evento eliminado (ocultado) correctamente" });
   } catch (error) {
