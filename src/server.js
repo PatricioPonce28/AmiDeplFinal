@@ -8,9 +8,6 @@ import { v2 as cloudinary } from 'cloudinary'
 import router from './routers/admin_routes.js';
 import estudianteRoutes from './routers/estudiante_routes.js'
 import path from 'path';
-import passport from './config/passport.js'
-import session from 'express-session'
-import authRoutes from './routers/auth_Google_routes.js';
 
 // Inicializaciones 
 const app = express()
@@ -53,25 +50,6 @@ app.use(fileUpload({
 // Configuraciones 
 app.set(`port`, process.env.PORT || 3000)
 
-
-// Sesión Google 
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    secure: true, 
-    httpOnly: true,
-    sameSite: 'none',
-  }
-}));
-
-// Inicializar passport
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Rutas de autenticación
-app.use('/auth', authRoutes);
 
 // Rutas 
 app.get('/',(req,res)=>{

@@ -855,6 +855,20 @@ const capturarPagoPayPal = async (req, res) => {
       mensaje: "¡Aporte realizado con éxito! Gracias por apoyar Amikuna.",
     });
 
+    let tesoreria = await Tesoreria.findOne();
+      if (!tesoreria) {
+        tesoreria = await Tesoreria.create({ saldoTotal: 0, movimientos: [] });
+      }
+
+    tesoreria.saldoTotal += amount;
+    tesoreria.movimientos.push({
+    tipo: "ingreso",
+    monto: amount,
+    razon: `Aporte de usuario vía PayPal - Orden ${orderId}`
+    });
+
+await tesoreria.save();
+
   } catch (error) {
     console.error("Error capturando pago PayPal:", error);
     res.status(500).json({ ok: false, mensaje: error.message });

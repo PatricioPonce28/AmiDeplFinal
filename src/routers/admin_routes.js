@@ -1,8 +1,8 @@
 import {Router} from 'express'
 import { comprobarTokenPasword, confirmarMail, crearNuevoPassword, recuperarPassword, registro, 
-    cambiarPasswordAdmin, generarNuevaPasswordAdmin, login, perfil, logout, actualizarPerfilAdmin, listarEstudiantes, 
+    cambiarPasswordAdmin, login, perfil, logout, actualizarPerfilAdmin, listarEstudiantes, 
     eliminarEstudiante, crearEvento, obtenerEventosAdmin, actualizarEvento, eliminarEvento, verMisStrikes, responderStrike, 
-    obtenerDenunciaDetalle, eliminarMatchYChat} 
+    obtenerDenunciaDetalle, eliminarMatchYChat, verTesoreria, registrarGasto, ajustarSaldo } 
 from '../controllers/admin_controllers.js'
 import { verificarTokenJWT } from '../middlewares/JWT.js'
 
@@ -18,7 +18,6 @@ router.post('/nuevopassword/:token',crearNuevoPassword)
 
 // Nuevas rutas para administrador
 router.put('/admin/cambiar-password', cambiarPasswordAdmin);
-router.post('/admin/generar-nueva-password', generarNuevaPasswordAdmin);
 
 // Ruta del Login
 router.post('/login', login)
@@ -58,5 +57,9 @@ router.post('/denuncias/:strikeId/eliminar-match-chat', verificarTokenJWT, elimi
 // Responder a un strike (crear respuesta y notificación)
 router.post('/responder-strike/:strikeId', verificarTokenJWT, responderStrike);
 
+// Rutas de la tesorería por los pagos de PayPla
+router.get("/tesoreria", verificarTokenJWT, verTesoreria);
+router.post("/tesoreria/gasto", verificarTokenJWT, registrarGasto);
+router.post("/tesoreria/ajuste", verificarTokenJWT, ajustarSaldo);
 
 export default router

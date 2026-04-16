@@ -8,9 +8,9 @@ import fs from "fs-extra";
 import Strike from "../models/strikes.js";
 import Chat from "../models/chats.js";
 import HistorialNotificacion from "../models/HistorialNotificacion.js";
-
-//nuevas importaciones para admin
 import supabase from "../config/supabase.js";
+import Tesoreria from "../models/Tesoreria.js";
+import Aporte from "../models/Aporte.js";
 
 // registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
 
@@ -174,60 +174,6 @@ const cambiarPasswordAdmin = async (req, res) => {
     res.status(200).json({ msg: "Contraseña actualizada exitosamente" });
   } catch (error) {
     console.error("Error en cambiarPasswordAdmin:", error);
-    res.status(500).json({ msg: "Error interno del servidor" });
-  }
-};
-
-const generarNuevaPasswordAdmin = async (req, res) => {
-  try {
-    const { email, masterKey, securityAnswer } = req.body;
-
-    // Validar campos obligatorios
-    if (!email || !masterKey || !securityAnswer) {
-      return res.status(400).json({ msg: "Todos los campos son obligatorios" });
-    }
-
-    // Validar que es el email del administrador
-    if (email !== "admin@epn.edu.ec") {
-      return res
-        .status(403)
-        .json({ msg: "Acceso denegado. Solo para administradores" });
-    }
-
-    // Validar la clave maestra
-    if (masterKey !== process.env.ADMIN_MASTER_KEY) {
-      return res.status(403).json({ msg: "Clave maestra incorrecta" });
-    }
-
-    // Validar la pregunta de seguridad
-    if (securityAnswer !== "2025-A") {
-      return res.status(403).json({ msg: "Respuesta de seguridad incorrecta" });
-    }
-
-    // Buscar al administrador (debe existir por tu script)
-    const adminUser = await users.findOne({ email });
-    if (!adminUser) {
-      return res.status(404).json({
-        msg: "Administrador no encontrado. Ejecuta el script de creación primero.",
-      });
-    }
-
-    // Generar nueva contraseña (sin token)
-    const nuevaPassword =
-      "Admin" + Math.random().toString(36).slice(2, 10) + "!";
-
-    // Actualizar contraseña (encriptada)
-    adminUser.password = await adminUser.encryptPassword(nuevaPassword);
-    await adminUser.save();
-
-    res.status(200).json({
-      msg: "Nueva contraseña generada exitosamente",
-      nuevaPassword: nuevaPassword,
-      warning:
-        "Guarda esta contraseña inmediatamente. No se mostrará nuevamente.",
-    });
-  } catch (error) {
-    console.error("Error en generarNuevaPasswordAdmin:", error);
     res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
@@ -705,6 +651,101 @@ const eliminarMatchYChat = async (req, res) => {
   }
 };
 
+const verTesoreria = async (req, res) => {
+  try {
+    const tesoreria = await Tesoreria.findOne();
+    const aportes = await Aporte.find({ status: "pagado" })
+      .populate("userId", "nombre apellido correo")
+      .sort({ createdAt: -1 });
+
+    const totalAportes = aportes.reduce((acc, a) => acc + a.amount, 0);
+
+    res.status(200).json({
+      saldoDisponible: tesoreria?.saldoTotal ?? 0,
+      totalRecaudado: totalAportes,
+      totalMovimientos: tesoreria?.movimientos?.length ?? 0,
+      movimientos: tesoreria?.movimientos ?? [],
+      aportes
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al obtener tesorería", error: error.message });
+  }
+};
+
+// Registrar un gasto — resta del saldo y guarda la razón
+const registrarGasto = async (req, res) => {
+  try {
+    const { monto, razon } = req.body;
+
+    if (!monto || monto <= 0) {
+      return res.status(400).json({ msg: "Monto inválido" });
+    }
+    if (!razon || razon.trim().length < 3) {
+      return res.status(400).json({ msg: "Debes especificar una razón" });
+    }
+
+    const tesoreria = await Tesoreria.findOne();
+    if (!tesoreria) {
+      return res.status(404).json({ msg: "No hay tesorería inicializada aún" });
+    }
+
+    if (tesoreria.saldoTotal < monto) {
+      return res.status(400).json({
+        msg: `Saldo insuficiente. Disponible: $${tesoreria.saldoTotal}`
+      });
+    }
+
+    tesoreria.saldoTotal -= monto;
+    tesoreria.movimientos.push({
+      tipo: "gasto",
+      monto,
+      razon: razon.trim()
+    });
+
+    await tesoreria.save();
+
+    res.status(200).json({
+      msg: "Gasto registrado correctamente",
+      saldoActual: tesoreria.saldoTotal
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al registrar gasto", error: error.message });
+  }
+};
+
+// Ajuste manual — por si necesitas corregir el saldo a mano
+const ajustarSaldo = async (req, res) => {
+  try {
+    const { monto, razon } = req.body;
+
+    if (!razon || razon.trim().length < 3) {
+      return res.status(400).json({ msg: "Debes especificar una razón" });
+    }
+
+    let tesoreria = await Tesoreria.findOne();
+    if (!tesoreria) {
+      tesoreria = await Tesoreria.create({ saldoTotal: 0, movimientos: [] });
+    }
+
+    const tipo = monto >= 0 ? "ingreso" : "gasto";
+    tesoreria.saldoTotal += monto; 
+    tesoreria.movimientos.push({
+      tipo,
+      monto: Math.abs(monto),
+      razon: razon.trim()
+    });
+
+    await tesoreria.save();
+
+    res.status(200).json({
+      msg: "Saldo ajustado correctamente",
+      saldoActual: tesoreria.saldoTotal
+    });
+  } catch (error) {
+    res.status(500).json({ msg: "Error al ajustar saldo", error: error.message });
+  }
+};
+
 export {
   registro,
   confirmarMail,
@@ -712,7 +753,6 @@ export {
   comprobarTokenPasword,
   crearNuevoPassword,
   cambiarPasswordAdmin,
-  generarNuevaPasswordAdmin,
   login,
   perfil,
   logout,
@@ -727,4 +767,7 @@ export {
   obtenerDenunciaDetalle,
   eliminarMatchYChat,
   responderStrike,
+  verTesoreria,
+  registrarGasto,
+  ajustarSaldo
 };
