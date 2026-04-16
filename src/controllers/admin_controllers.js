@@ -51,9 +51,9 @@ const registro = async (req, res) => {
 
     if (error) throw error;
 
-    console.log("✅ Email de confirmación enviado:", email);
+    console.log("Email de confirmación enviado:", email);
   } catch (error) {
-    console.error("❌ Error enviando correo:", error.message);
+    console.error("Error enviando correo:", error.message);
     return res.status(500).json({
       msg: "Usuario registrado pero hubo un problema al enviar el correo.",
     });
