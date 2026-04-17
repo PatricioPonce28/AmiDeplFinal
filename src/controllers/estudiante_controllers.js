@@ -1,24 +1,27 @@
-import mongoose from "mongoose"  
-import users from '../models/users.js';
-import { v2 as cloudinary } from 'cloudinary';
-import fs from 'fs-extra';
+import mongoose from "mongoose";
+import users from "../models/users.js";
+import { v2 as cloudinary } from "cloudinary";
+import fs from "fs-extra";
 import { generarConRetry, getModel } from "../helpers/gemini_helper.js";
-import Evento from '../models/Evento.js';
-import Chat from '../models/chats.js';
-import Aporte from '../models/Aporte.js';
+import Evento from "../models/Evento.js";
+import Chat from "../models/chats.js";
+import Aporte from "../models/Aporte.js";
 import { injectIO } from "../middlewares/injectIO.js";
-import Strike from '../models/strikes.js';
+import Strike from "../models/strikes.js";
 import HistorialConChatbot from "../models/historialConChatbot.js";
-import HistorialNotificacion from '../models/HistorialNotificacion.js';
-import fetch from "node-fetch"
+import HistorialNotificacion from "../models/HistorialNotificacion.js";
+import fetch from "node-fetch";
 
 const getCloudinaryPublicIdFromUrl = (url) => {
-  if (!url || typeof url !== 'string') return null;
+  if (!url || typeof url !== "string") return null;
   const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
   return match ? match[1] : null;
 };
 
-const uploadFilesToCloudinary = async (files, folder = 'Estudiantes/Galeria') => {
+const uploadFilesToCloudinary = async (
+  files,
+  folder = "Estudiantes/Galeria",
+) => {
   if (!files) return [];
   const fileArray = Array.isArray(files) ? files : [files];
   const uploaded = [];
@@ -39,7 +42,13 @@ const uploadFilesToCloudinary = async (files, folder = 'Estudiantes/Galeria') =>
   return uploaded;
 };
 
-const crearNotificacion = async ({ usuarioId, fromUserId = null , tipo, titulo, mensaje }) => {
+const crearNotificacion = async ({
+  usuarioId,
+  fromUserId = null,
+  tipo,
+  titulo,
+  mensaje,
+}) => {
   try {
     await HistorialNotificacion.create({
       usuario: usuarioId,
@@ -47,33 +56,47 @@ const crearNotificacion = async ({ usuarioId, fromUserId = null , tipo, titulo, 
       tipo,
       titulo,
       mensaje,
-      leido: false
+      leido: false,
     });
   } catch (error) {
-    console.error('Error creando notificación:', error);
+    console.error("Error creando notificación:", error);
   }
 };
 
 const crearChatMatch = async (usuarioAId, usuarioBId, io) => {
   try {
     const sortedIds = [usuarioAId.toString(), usuarioBId.toString()].sort();
+
     let chat = await Chat.findOne({ participantes: sortedIds });
+
     if (!chat) {
       chat = await Chat.create({ participantes: sortedIds, mensajes: [] });
+
       if (io) {
-        io.to(usuarioAId.toString()).emit('chat:created', {
+        // 🔥 evento específico
+        io.to(usuarioAId.toString()).emit("chat:created", {
           chatId: chat._id,
-          otherUserId: usuarioBId
+          otherUserId: usuarioBId,
         });
-        io.to(usuarioBId.toString()).emit('chat:created', {
+
+        io.to(usuarioBId.toString()).emit("chat:created", {
           chatId: chat._id,
-          otherUserId: usuarioAId
+          otherUserId: usuarioAId,
         });
+
+        // 🔥 evento global para UI
+        io.to(usuarioAId.toString()).emit("nuevo_chat", chat);
+        io.to(usuarioBId.toString()).emit("nuevo_chat", chat);
+
+        console.log(
+          `Socket: Evento 'nuevo_chat' emitido para el chat ${chat._id}`,
+        );
       }
     }
+
     return chat;
   } catch (error) {
-    console.error('Error creando chat de match:', error);
+    console.error("Error creando chat de match:", error);
     throw error;
   }
 };
@@ -81,14 +104,16 @@ const crearChatMatch = async (usuarioAId, usuarioBId, io) => {
 const obtenerNotificaciones = async (req, res) => {
   try {
     const usuarioId = req.userBDD._id;
-    const notificaciones = await HistorialNotificacion.find({ usuario: usuarioId })
-      .populate('fromUser', 'nombre imagenPerfil')
+    const notificaciones = await HistorialNotificacion.find({
+      usuario: usuarioId,
+    })
+      .populate("fromUser", "nombre imagenPerfil")
       .sort({ createdAt: -1 })
       .lean();
     return res.status(200).json({ notificaciones });
   } catch (error) {
-    console.error('Error al obtener notificaciones:', error);
-    return res.status(500).json({ msg: 'Error al obtener notificaciones' });
+    console.error("Error al obtener notificaciones:", error);
+    return res.status(500).json({ msg: "Error al obtener notificaciones" });
   }
 };
 
@@ -98,34 +123,48 @@ const marcarNotificacionLeida = async (req, res) => {
     const usuarioId = req.userBDD?._id;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ msg: 'ID de notificación inválido' });
+      return res.status(400).json({ msg: "ID de notificación inválido" });
     }
 
     if (!usuarioId) {
-      return res.status(401).json({ msg: 'Usuario no autenticado' });
+      return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
-    const notificacion = await HistorialNotificacion.findOne({ _id: id, usuario: usuarioId });
+    const notificacion = await HistorialNotificacion.findOne({
+      _id: id,
+      usuario: usuarioId,
+    });
     if (!notificacion) {
-      return res.status(404).json({ msg: 'Notificación no encontrada o no perteneciente al usuario' });
+      return res.status(404).json({
+        msg: "Notificación no encontrada o no perteneciente al usuario",
+      });
     }
 
     if (notificacion.leido) {
-      return res.status(200).json({ msg: 'Notificación ya estaba marcada como leída', notificacion });
+      return res.status(200).json({
+        msg: "Notificación ya estaba marcada como leída",
+        notificacion,
+      });
     }
 
     notificacion.leido = true;
     await notificacion.save();
 
-    return res.status(200).json({ msg: 'Notificación marcada como leída', notificacion });
+    return res
+      .status(200)
+      .json({ msg: "Notificación marcada como leída", notificacion });
   } catch (error) {
-    console.error('Error marcando notificación como leída:', error);
-    return res.status(500).json({ msg: 'Error al marcar notificación', error: error.message });
+    console.error("Error marcando notificación como leída:", error);
+    return res
+      .status(500)
+      .json({ msg: "Error al marcar notificación", error: error.message });
   }
 };
 
 const logout = (req, res) => {
-  return res.status(200).json({ msg: 'Sesión cerrada. Guarda el token localmente removido en frontend.' });
+  return res.status(200).json({
+    msg: "Sesión cerrada. Guarda el token localmente removido en frontend.",
+  });
 };
 
 const marcarNotificacionLeidaPorStrike = async (req, res) => {
@@ -134,19 +173,23 @@ const marcarNotificacionLeidaPorStrike = async (req, res) => {
     const usuarioId = req.userBDD?._id;
 
     if (!mongoose.Types.ObjectId.isValid(strikeId)) {
-      return res.status(400).json({ msg: 'Strike ID inválido' });
+      return res.status(400).json({ msg: "Strike ID inválido" });
     }
 
     const strike = await Strike.findById(strikeId);
     if (!strike || strike.de.toString() !== usuarioId.toString()) {
-      return res.status(404).json({ msg: 'Strike no encontrado o no te pertenece' });
+      return res
+        .status(404)
+        .json({ msg: "Strike no encontrado o no te pertenece" });
     }
 
     let notificacion = await HistorialNotificacion.findOne({
       usuario: usuarioId,
-      tipo: 'respuesta_strike',
+      tipo: "respuesta_strike",
       fromUser: strike.para,
-      mensaje: { $regex: strike.respuesta ? strike.respuesta.substring(0, 20) : '.*' }
+      mensaje: {
+        $regex: strike.respuesta ? strike.respuesta.substring(0, 20) : ".*",
+      },
     });
 
     if (!notificacion) {
@@ -154,28 +197,39 @@ const marcarNotificacionLeidaPorStrike = async (req, res) => {
       notificacion = await HistorialNotificacion.create({
         usuario: usuarioId,
         fromUser: strike.para,
-        tipo: 'respuesta_strike',
-        titulo: 'Respuesta del Equipo de Soporte',
+        tipo: "respuesta_strike",
+        titulo: "Respuesta del Equipo de Soporte",
         mensaje: strike.respuesta
           ? `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${strike.respuesta}"`
-          : 'El equipo de soporte de Amikuna respondió tu solicitud.',
-        leido: true
+          : "El equipo de soporte de Amikuna respondió tu solicitud.",
+        leido: true,
       });
 
-      return res.status(200).json({ msg: 'Notificación creada y marcada como leída', notificacion });
+      return res.status(200).json({
+        msg: "Notificación creada y marcada como leída",
+        notificacion,
+      });
     }
 
     if (notificacion.leido) {
-      return res.status(200).json({ msg: 'Notificación ya estaba marcada como leída', notificacion });
+      return res.status(200).json({
+        msg: "Notificación ya estaba marcada como leída",
+        notificacion,
+      });
     }
 
     notificacion.leido = true;
     await notificacion.save();
 
-    return res.status(200).json({ msg: 'Notificación marcada como leída', notificacion });
+    return res
+      .status(200)
+      .json({ msg: "Notificación marcada como leída", notificacion });
   } catch (error) {
-    console.error('Error marcando notificación por strike:', error);
-    return res.status(500).json({ msg: 'Error al marcar notificación por strike', error: error.message });
+    console.error("Error marcando notificación por strike:", error);
+    return res.status(500).json({
+      msg: "Error al marcar notificación por strike",
+      error: error.message,
+    });
   }
 };
 
@@ -183,30 +237,59 @@ const completarPerfil = async (req, res) => {
   try {
     const id = req.userBDD._id;
 
-    // Extraer y normalizar datos (ajustado para FormData)
     const nombre = req.body.nombre?.trim();
     const biografia = req.body.biografia?.trim();
     const intereses = req.body.intereses?.split(',').map(i => i.trim()) || [];
     const genero = req.body.genero?.toLowerCase();
     const orientacion = req.body.orientacion?.toLowerCase();
     const fechaNacimiento = req.body.fechaNacimiento;
-    const ciudad = req.body['ubicacion[ciudad]']?.trim(); 
-    const pais = req.body['ubicacion[pais]']?.trim(); 
+    const ciudad = req.body['ubicacion[ciudad]']?.trim();
+    const pais = req.body['ubicacion[pais]']?.trim();
 
     // Validar campos obligatorios
     if (!nombre || !biografia || !fechaNacimiento || !genero || !orientacion || intereses.length === 0 || !ciudad || !pais) {
       return res.status(400).json({ msg: "Por favor, completa todos los campos obligatorios." });
     }
 
+    // Validar nombre sin espacios
+    if (/\s/.test(nombre)) {
+      return res.status(400).json({ msg: "El nombre no debe contener espacios." });
+    }
+
+    // Validar ciudad y país sin espacios
+    if (/\s/.test(ciudad)) {
+      return res.status(400).json({ msg: "La ciudad no debe contener espacios." });
+    }
+    if (/\s/.test(pais)) {
+      return res.status(400).json({ msg: "El país no debe contener espacios." });
+    }
+
+    // Validar mayoría de edad (18 años)
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacimiento);
+    const edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const cumplioEsteAnio =
+      hoy.getMonth() > nacimiento.getMonth() ||
+      (hoy.getMonth() === nacimiento.getMonth() && hoy.getDate() >= nacimiento.getDate());
+    const edadReal = cumplioEsteAnio ? edad : edad - 1;
+
+    if (isNaN(nacimiento.getTime())) {
+      return res.status(400).json({ msg: "Fecha de nacimiento inválida." });
+    }
+    if (edadReal < 18) {
+      return res.status(400).json({ msg: "Debes tener al menos 18 años para usar Amikuna." });
+    }
+
     // Buscar al usuario
     const usuario = await users.findById(id);
-    if (!usuario) return res.status(404).json({ msg: "Usuario no encontrado." });
+    if (!usuario)
+      return res.status(404).json({ msg: "Usuario no encontrado." });
 
     // Subir imagen a Cloudinary si se envió
     if (req.files?.imagenPerfil) {
       const file = req.files.imagenPerfil.tempFilePath;
       const resultado = await cloudinary.uploader.upload(file, {
-        folder: 'Estudiantes'
+        folder: "Estudiantes",
       });
       usuario.imagenPerfil = resultado.secure_url;
       // await fs.unlink(file); // borrar imagen temporal (comentado porque a veces da problemas)
@@ -216,7 +299,7 @@ const completarPerfil = async (req, res) => {
     const galeriaFiles = req.files?.imagenesGaleria || req.files?.galeria;
     if (galeriaFiles) {
       const uploads = await uploadFilesToCloudinary(galeriaFiles);
-      const urls = uploads.map(u => u.url);
+      const urls = uploads.map((u) => u.url);
       usuario.imagenesGaleria = Array.isArray(usuario.imagenesGaleria)
         ? [...usuario.imagenesGaleria, ...urls]
         : urls;
@@ -245,16 +328,18 @@ const completarPerfil = async (req, res) => {
     req.userBDD = usuario;
 
     // Limpiar respuesta
-    const { password, token, __v, createdAt, updatedAt, ...perfil } = usuario.toObject();
+    const { password, token, __v, createdAt, updatedAt, ...perfil } =
+      usuario.toObject();
 
     res.status(200).json({
       msg: "Perfil actualizado correctamente",
-      perfilActualizado: perfil
+      perfilActualizado: perfil,
     });
-
   } catch (error) {
     console.log(error);
-    res.status(500).json({ msg: "Error en el servidor al actualizar el perfil" });
+    res
+      .status(500)
+      .json({ msg: "Error en el servidor al actualizar el perfil" });
   }
 };
 
@@ -266,11 +351,13 @@ const agregarFotosGaleria = async (req, res) => {
 
     const galeriaFiles = req.files?.imagenesGaleria || req.files?.galeria;
     if (!galeriaFiles) {
-      return res.status(400).json({ msg: "No se recibieron archivos. Envía los archivos en form-data bajo el campo 'imagenesGaleria'" });
+      return res.status(400).json({
+        msg: "No se recibieron archivos. Envía los archivos en form-data bajo el campo 'imagenesGaleria'",
+      });
     }
 
     const uploads = await uploadFilesToCloudinary(galeriaFiles);
-    const urls = uploads.map(u => u.url);
+    const urls = uploads.map((u) => u.url);
 
     user.imagenesGaleria = Array.isArray(user.imagenesGaleria)
       ? [...user.imagenesGaleria, ...urls]
@@ -278,10 +365,15 @@ const agregarFotosGaleria = async (req, res) => {
 
     await user.save();
 
-    return res.status(200).json({ msg: "Imágenes guardadas en la galería", imagenesGaleria: user.imagenesGaleria });
+    return res.status(200).json({
+      msg: "Imágenes guardadas en la galería",
+      imagenesGaleria: user.imagenesGaleria,
+    });
   } catch (error) {
     console.error("Error agregando imágenes de galería:", error);
-    return res.status(500).json({ msg: "Error al agregar imágenes de galería" });
+    return res
+      .status(500)
+      .json({ msg: "Error al agregar imágenes de galería" });
   }
 };
 
@@ -291,15 +383,20 @@ const eliminarFotoGaleria = async (req, res) => {
     const { url } = req.body;
 
     if (!url) {
-      return res.status(400).json({ msg: "Se requiere la URL de la imagen a eliminar" });
+      return res
+        .status(400)
+        .json({ msg: "Se requiere la URL de la imagen a eliminar" });
     }
 
     const user = await users.findById(id);
     if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
 
-    const exists = Array.isArray(user.imagenesGaleria) && user.imagenesGaleria.includes(url);
+    const exists =
+      Array.isArray(user.imagenesGaleria) && user.imagenesGaleria.includes(url);
     if (!exists) {
-      return res.status(404).json({ msg: "Imagen no encontrada en la galería" });
+      return res
+        .status(404)
+        .json({ msg: "Imagen no encontrada en la galería" });
     }
 
     const publicId = getCloudinaryPublicIdFromUrl(url);
@@ -307,10 +404,13 @@ const eliminarFotoGaleria = async (req, res) => {
       await cloudinary.uploader.destroy(publicId);
     }
 
-    user.imagenesGaleria = user.imagenesGaleria.filter(img => img !== url);
+    user.imagenesGaleria = user.imagenesGaleria.filter((img) => img !== url);
     await user.save();
 
-    return res.status(200).json({ msg: "Imagen eliminada con éxito", imagenesGaleria: user.imagenesGaleria });
+    return res.status(200).json({
+      msg: "Imagen eliminada con éxito",
+      imagenesGaleria: user.imagenesGaleria,
+    });
   } catch (error) {
     console.error("Error eliminando imagen de galería:", error);
     return res.status(500).json({ msg: "Error al eliminar imagen de galería" });
@@ -328,13 +428,18 @@ const reemplazarFotoGaleria = async (req, res) => {
     }
 
     if (!file) {
-      return res.status(400).json({ msg: "Se requiere un archivo para reemplazar" });
+      return res
+        .status(400)
+        .json({ msg: "Se requiere un archivo para reemplazar" });
     }
 
     const user = await users.findById(id);
     if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
 
-    if (!Array.isArray(user.imagenesGaleria) || index >= user.imagenesGaleria.length) {
+    if (
+      !Array.isArray(user.imagenesGaleria) ||
+      index >= user.imagenesGaleria.length
+    ) {
       return res.status(400).json({ msg: "Índice fuera de rango" });
     }
 
@@ -354,10 +459,15 @@ const reemplazarFotoGaleria = async (req, res) => {
     user.imagenesGaleria[index] = newUrl;
     await user.save();
 
-    return res.status(200).json({ msg: "Imagen actualizada con éxito", imagenesGaleria: user.imagenesGaleria });
+    return res.status(200).json({
+      msg: "Imagen actualizada con éxito",
+      imagenesGaleria: user.imagenesGaleria,
+    });
   } catch (error) {
     console.error("Error reemplazando imagen de galería:", error);
-    return res.status(500).json({ msg: "Error al reemplazar imagen de galería" });
+    return res
+      .status(500)
+      .json({ msg: "Error al reemplazar imagen de galería" });
   }
 };
 
@@ -408,23 +518,26 @@ Mensaje del usuario: "${mensaje}"
         $push: {
           mensajes: {
             $each: [
-              { rol: "usuario",    contenido: mensaje },
-              { rol: "asistente", contenido: texto   }
-            ]
-          }
-        }
+              { rol: "usuario", contenido: mensaje },
+              { rol: "asistente", contenido: texto },
+            ],
+          },
+        },
       },
-      { upsert: true, new: true }  
+      { upsert: true, new: true },
     );
 
     res.status(200).json({ respuesta: texto });
-
   } catch (error) {
     console.error("Error con Gemini:", error);
     if (error.status === 429) {
-      return res.status(429).json({ msg: "Límite alcanzado, intenta en unos segundos." });
+      return res
+        .status(429)
+        .json({ msg: "Límite alcanzado, intenta en unos segundos." });
     }
-    res.status(500).json({ msg: "Error interno al consultar", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Error interno al consultar", error: error.message });
   }
 };
 
@@ -439,7 +552,6 @@ const obtenerHistorialChatbot = async (req, res) => {
     }
 
     res.status(200).json({ mensajes: historial.mensajes });
-
   } catch (error) {
     console.error("Error al obtener historial:", error);
     res.status(500).json({ msg: "Error al obtener historial" });
@@ -448,7 +560,9 @@ const obtenerHistorialChatbot = async (req, res) => {
 
 const obtenerPerfilCompleto = async (req, res) => {
   try {
-    const usuario = await users.findById(req.userBDD._id).select('-password -token -__v -createdAt -updatedAt');
+    const usuario = await users
+      .findById(req.userBDD._id)
+      .select("-password -token -__v -createdAt -updatedAt");
     if (!usuario) return res.status(404).json({ msg: "Usuario no encontrado" });
 
     res.status(200).json(usuario);
@@ -457,7 +571,6 @@ const obtenerPerfilCompleto = async (req, res) => {
     res.status(500).json({ msg: "Error al obtener el perfil completo" });
   }
 };
-
 
 const listarPotencialesMatches = async (req, res) => {
   try {
@@ -475,41 +588,45 @@ const listarPotencialesMatches = async (req, res) => {
     if (yo.genero === "otro") filtroGenero.genero = "otro";
 
     // Buscar perfiles que cumplan los requisitos
-    let perfiles = await users.find({
-      _id: { $ne: yo._id }, // que no sea yo
-      ...filtroGenero,
-      imagenPerfil: { $ne: "" }, // tiene foto
-      biografia: { $ne: "" }, // tiene bio
-      intereses: { $exists: true, $not: { $size: 0 } } // tiene intereses
-    })
+    let perfiles = await users
+      .find({
+        _id: { $ne: yo._id }, // que no sea yo
+        ...filtroGenero,
+        imagenPerfil: { $ne: "" }, // tiene foto
+        biografia: { $ne: "" }, // tiene bio
+        intereses: { $exists: true, $not: { $size: 0 } }, // tiene intereses
+      })
       .select("-password -token -__v -updatedAt")
       .lean();
 
     // Filtrar perfiles que ya sean match
-    perfiles = perfiles.filter(perfil => {
-      const yoSigo = Array.isArray(yo.siguiendo) &&
-                     yo.siguiendo.some(id => id.toString() === perfil._id.toString());
+    perfiles = perfiles.filter((perfil) => {
+      const yoSigo =
+        Array.isArray(yo.siguiendo) &&
+        yo.siguiendo.some((id) => id.toString() === perfil._id.toString());
 
-      const elMeSigue = Array.isArray(perfil.siguiendo) &&
-                        perfil.siguiendo.some(id => id.toString() === yo._id.toString());
+      const elMeSigue =
+        Array.isArray(perfil.siguiendo) &&
+        perfil.siguiendo.some((id) => id.toString() === yo._id.toString());
 
       // Incluir solo si NO hay match mutuo
       return !(yoSigo && elMeSigue);
     });
 
     // Filtrar perfiles ya vistos
-    perfiles = perfiles.filter(perfil => {
-      return !Array.isArray(yo.perfilesVistos) ||
-             !yo.perfilesVistos.some(id => id.toString() === perfil._id.toString());
+    perfiles = perfiles.filter((perfil) => {
+      return (
+        !Array.isArray(yo.perfilesVistos) ||
+        !yo.perfilesVistos.some((id) => id.toString() === perfil._id.toString())
+      );
     });
 
     return res.status(200).json(perfiles);
-
   } catch (error) {
     console.error("Error en listarPotencialesMatches:", error);
     return res.status(500).json({
       msg: "Error interno del servidor al listar matches",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -520,95 +637,117 @@ const seguirUsuario = async (req, res) => {
     const yoId = req.userBDD._id;
     const { idSeguido } = req.params;
 
-    // Validaciones básicas (las que ya tenías)
     if (yoId.toString() === idSeguido) {
       return res.status(400).json({ msg: "No puedes seguirte a ti mismo" });
     }
 
     const [yo, otro] = await Promise.all([
       users.findById(yoId),
-      users.findById(idSeguido)
+      users.findById(idSeguido),
     ]);
 
     if (!otro) return res.status(404).json({ msg: "Usuario no encontrado" });
 
-    // Lógica de seguir/dejar de seguir (existente)
-    const yaLoSigo = yo.siguiendo.some(id => id.toString() === idSeguido);
+    const yaLoSigo = yo.siguiendo.some((id) => id.toString() === idSeguido);
+
     if (yaLoSigo) {
+      // --- Lógica para dejar de seguir ---
       yo.siguiendo.pull(idSeguido);
       otro.seguidores.pull(yoId);
-      
-      // Opcional: Eliminar match si existía
       yo.matches.pull(idSeguido);
       otro.matches.pull(yoId);
     } else {
+      // --- Lógica para seguir ---
       yo.siguiendo.push(idSeguido);
       otro.seguidores.push(yoId);
-      
-      // Agregar a perfiles vistos
-      if (!yo.perfilesVistos.some(id => id.toString() === idSeguido)) {
+
+      if (!yo.perfilesVistos.some((id) => id.toString() === idSeguido)) {
         yo.perfilesVistos.push(idSeguido);
       }
 
-      // Notificación de nuevo seguidor
       await crearNotificacion({
         usuarioId: idSeguido,
         fromUserId: yoId,
-        tipo: 'seguidor',
-        titulo: 'Tienes un nuevo seguidor',
-        mensaje: `${yo.nombre} ${yo.apellido ?? ''} te está siguiendo.`
+        tipo: "seguidor",
+        titulo: "Tienes un nuevo seguidor",
+        mensaje: `${yo.nombre} ${yo.apellido ?? ""} te está siguiendo.`,
       });
     }
 
-    // Nuevo: Sistema de matches automáticos
+    // --- Sistema de matches automáticos ---
     let huboMatch = false;
-    if (!yaLoSigo && otro.siguiendo.some(id => id.toString() === yoId.toString())) {
-      if (!yo.matches.some(id => id.toString() === idSeguido)) {
+    if (
+      !yaLoSigo &&
+      otro.siguiendo.some((id) => id.toString() === yoId.toString())
+    ) {
+      if (!yo.matches.some((id) => id.toString() === idSeguido))
         yo.matches.push(idSeguido);
-      }
-      if (!otro.matches.some(id => id.toString() === yoId.toString())) {
+      if (!otro.matches.some((id) => id.toString() === yoId.toString()))
         otro.matches.push(yoId);
-      }
+
       huboMatch = true;
 
-      await crearNotificacion({
-        usuarioId: yoId,
-        fromUserId: idSeguido,
-        tipo: 'match',
-        titulo: '¡Nuevo match!',
-        mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? 'alguien'}.`
-      });
-      await crearNotificacion({
-        usuarioId: idSeguido,
-        tipo: 'match',
-        titulo: '¡Nuevo match!',
-        mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? 'alguien'}.`
-      });
+      // Notificaciones de Match en DB
+      await Promise.all([
+        crearNotificacion({
+          usuarioId: yoId,
+          fromUserId: idSeguido,
+          tipo: "match",
+          titulo: "¡Nuevo match!",
+          mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? "alguien"}.`,
+        }),
+        crearNotificacion({
+          usuarioId: idSeguido,
+          fromUserId: yoId,
+          tipo: "match",
+          titulo: "¡Nuevo match!",
+          mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? "alguien"}.`,
+        }),
+      ]);
     }
 
+    // Guardado final en DB
     await Promise.all([yo.save(), otro.save()]);
 
-    if (huboMatch && req.io) {
-      await crearChatMatch(yoId, idSeguido, req.io);
+    // Crear el chat después de avisar el match
+    await crearChatMatch(yoId, idSeguido, req.io);
+
+    // --- BLOQUE UNIFICADO DE SOCKETS (Real-time) ---
+    if (req.io) {
+      if (huboMatch) {
+        console.log("🔥 MATCH DETECTADO");
+
+        req.io.to(yoId.toString()).emit("nuevo_match");
+        req.io.to(idSeguido.toString()).emit("nuevo_match");
+        console.log("MATCHES YO:", yo.matches);
+        console.log("MATCHES OTRO:", otro.matches);
+
+        console.log("📡 EVENTO EMITIDO");
+        req.io.emit("notificacion_nueva");
+        console.log(`Match confirmado: ${yoId} ❤️ ${idSeguido}`);
+
+        
+      } else if (!yaLoSigo) {
+        // Notifica solo si es un "Seguir" nuevo (no al dejar de seguir)
+        req.io.emit("notificacion_nueva");
+      }
+      
     }
 
-    // Respuesta mejorada
     return res.status(200).json({
-      msg: yaLoSigo 
-        ? "Has dejado de seguir" 
-        : huboMatch 
-          ? "¡Match! Ahora pueden chatear" 
+      msg: yaLoSigo
+        ? "Has dejado de seguir"
+        : huboMatch
+          ? "¡Match! Ahora pueden chatear"
           : "Ahora sigues a este usuario",
       siguiendo: yo.siguiendo.length,
-      huboMatch
+      huboMatch,
     });
-
   } catch (error) {
     console.error("Error en seguirUsuario:", error);
     return res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
-
 
 const listarMatches = async (req, res) => {
   try {
@@ -616,18 +755,18 @@ const listarMatches = async (req, res) => {
 
     console.log("Usuario sin populate:", usuario);
 
-    const usuarioConPopulate = await users.findById(req.userBDD._id)
-      .populate({
-        path: 'matches',
-      });
+    const usuarioConPopulate = await users.findById(req.userBDD._id).populate({
+      path: "matches",
+    });
 
     console.log("Matches con populate:", usuarioConPopulate.matches);
 
     res.status(200).json(usuarioConPopulate.matches);
-
   } catch (error) {
     console.error("Error al listar matches:", error);
-    res.status(500).json({ msg: "Error al listar matches", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Error al listar matches", error: error.message });
   }
 };
 
@@ -635,17 +774,17 @@ const obtenerEventos = async (req, res) => {
   try {
     const eventosRaw = await Evento.find({ activo: true })
       //  populamos ambos arrays
-      .populate('asistentes', 'nombre apellido')
-      .populate('noAsistiran', 'nombre apellido')
-      
+      .populate("asistentes", "nombre apellido")
+      .populate("noAsistiran", "nombre apellido")
+
       .select("-__v -createdAt -updatedAt -creador")
       .lean();
 
-    const eventos = eventosRaw.map(evento => ({
+    const eventos = eventosRaw.map((evento) => ({
       ...evento,
       _id: evento._id.toString(),
     }));
-     
+
     res.status(200).json(eventos);
   } catch (error) {
     console.error(error);
@@ -658,45 +797,50 @@ const obtenerMisEventos = async (req, res) => {
     const userId = req.userBDD._id;
 
     const eventosRaw = await Evento.find({ activo: true, asistentes: userId })
-      .populate('asistentes', 'nombre apellido imagenPerfil email')
-      .populate('noAsistiran', 'nombre apellido imagenPerfil email')
-      .populate('creador', 'nombre apellido email')
-      .select('-__v -createdAt -updatedAt')
+      .populate("asistentes", "nombre apellido imagenPerfil email")
+      .populate("noAsistiran", "nombre apellido imagenPerfil email")
+      .populate("creador", "nombre apellido email")
+      .select("-__v -createdAt -updatedAt")
       .lean();
 
-    const eventos = eventosRaw.map(evento => ({
+    const eventos = eventosRaw.map((evento) => ({
       ...evento,
       _id: evento._id.toString(),
-      asistentes: Array.isArray(evento.asistentes) ? evento.asistentes.map(a => ({
-        _id: a._id.toString(),
-        nombre: a.nombre,
-        apellido: a.apellido,
-        email: a.email,
-        imagenPerfil: a.imagenPerfil
-      })) : [],
-      noAsistiran: Array.isArray(evento.noAsistiran) ? evento.noAsistiran.map(n => ({
-        _id: n._id.toString(),
-        nombre: n.nombre,
-        apellido: n.apellido,
-        email: n.email,
-        imagenPerfil: n.imagenPerfil
-      })) : []
+      asistentes: Array.isArray(evento.asistentes)
+        ? evento.asistentes.map((a) => ({
+            _id: a._id.toString(),
+            nombre: a.nombre,
+            apellido: a.apellido,
+            email: a.email,
+            imagenPerfil: a.imagenPerfil,
+          }))
+        : [],
+      noAsistiran: Array.isArray(evento.noAsistiran)
+        ? evento.noAsistiran.map((n) => ({
+            _id: n._id.toString(),
+            nombre: n.nombre,
+            apellido: n.apellido,
+            email: n.email,
+            imagenPerfil: n.imagenPerfil,
+          }))
+        : [],
     }));
 
     res.status(200).json(eventos);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ msg: 'Error al obtener mis eventos' });
+    res.status(500).json({ msg: "Error al obtener mis eventos" });
   }
 };
-
 
 const confirmarAsistencia = async (req, res) => {
   try {
     const { idEvento } = req.params;
 
     if (!idEvento || !mongoose.Types.ObjectId.isValid(idEvento)) {
-      return res.status(400).json({ msg: "ID de evento inválido o no recibido" });
+      return res
+        .status(400)
+        .json({ msg: "ID de evento inválido o no recibido" });
     }
 
     const userId = req.userBDD._id;
@@ -706,10 +850,14 @@ const confirmarAsistencia = async (req, res) => {
 
     if (!evento.asistentes.includes(userId)) {
       evento.asistentes.push(userId);
-      evento.noAsistiran = evento.noAsistiran.filter(id => id.toString() !== userId.toString());
+      evento.noAsistiran = evento.noAsistiran.filter(
+        (id) => id.toString() !== userId.toString(),
+      );
     }
 
     await evento.save();
+    // confirmarAsistencia — admin ve cambio en tiempo real
+    req.io.emit("asistencia_actualizada", { eventoId: idEvento });
     res.status(200).json({ msg: "Asistencia confirmada" });
   } catch (error) {
     console.error(error);
@@ -722,7 +870,9 @@ const rechazarAsistencia = async (req, res) => {
     const { idEvento } = req.params;
 
     if (!idEvento || !mongoose.Types.ObjectId.isValid(idEvento)) {
-      return res.status(400).json({ msg: "ID de evento inválido o no recibido" });
+      return res
+        .status(400)
+        .json({ msg: "ID de evento inválido o no recibido" });
     }
 
     const userId = req.userBDD._id;
@@ -732,10 +882,14 @@ const rechazarAsistencia = async (req, res) => {
 
     if (!evento.noAsistiran.includes(userId)) {
       evento.noAsistiran.push(userId);
-      evento.asistentes = evento.asistentes.filter(id => id.toString() !== userId.toString());
+      evento.asistentes = evento.asistentes.filter(
+        (id) => id.toString() !== userId.toString(),
+      );
     }
 
     await evento.save();
+    // rechazarAsistencia — admin ve cambio en tiempo real
+    req.io.emit("asistencia_actualizada", { eventoId: idEvento });
     res.status(200).json({ msg: "Asistencia rechazada" });
   } catch (error) {
     console.error(error);
@@ -747,7 +901,7 @@ const rechazarAsistencia = async (req, res) => {
 
 const getPayPalToken = async () => {
   const credentials = Buffer.from(
-    `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`
+    `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`,
   ).toString("base64");
 
   const res = await fetch(`${process.env.PAYPAL_URL}/v1/oauth2/token`, {
@@ -773,36 +927,44 @@ const crearOrdenPayPal = async (req, res) => {
 
     const token = await getPayPalToken();
 
-    const response = await fetch(`${process.env.PAYPAL_URL}/v2/checkout/orders`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        intent: "CAPTURE",
-        purchase_units: [{
-          amount: {
-            currency_code: "USD",
-            value: Number(amount).toFixed(2),
+    const response = await fetch(
+      `${process.env.PAYPAL_URL}/v2/checkout/orders`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          intent: "CAPTURE",
+          purchase_units: [
+            {
+              amount: {
+                currency_code: "USD",
+                value: Number(amount).toFixed(2),
+              },
+              description: "Aporte para Amikuna",
+            },
+          ],
+          application_context: {
+            brand_name: "Amikuna",
+            user_action: "PAY_NOW",
           },
-          description: "Aporte para Amikuna",
-        }],
-        application_context: {
-          brand_name: "Amikuna",
-          user_action: "PAY_NOW",
-        }
-      }),
-    });
+        }),
+      },
+    );
 
     const order = await response.json();
 
     if (!order.id) {
-      return res.status(500).json({ ok: false, mensaje: "Error creando orden en PayPal", detalle: order });
+      return res.status(500).json({
+        ok: false,
+        mensaje: "Error creando orden en PayPal",
+        detalle: order,
+      });
     }
 
     res.status(201).json({ ok: true, orderId: order.id });
-
   } catch (error) {
     console.error("Error creando orden PayPal:", error);
     res.status(500).json({ ok: false, mensaje: error.message });
@@ -815,7 +977,9 @@ const capturarPagoPayPal = async (req, res) => {
     const userId = req.userBDD._id;
 
     if (!orderId || !amount) {
-      return res.status(400).json({ ok: false, mensaje: "orderId y amount son requeridos" });
+      return res
+        .status(400)
+        .json({ ok: false, mensaje: "orderId y amount son requeridos" });
     }
 
     const token = await getPayPalToken();
@@ -828,7 +992,7 @@ const capturarPagoPayPal = async (req, res) => {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     const capture = await response.json();
@@ -840,7 +1004,11 @@ const capturarPagoPayPal = async (req, res) => {
         paypalOrderId: orderId,
         status: "fallido",
       });
-      return res.status(400).json({ ok: false, mensaje: "Pago no completado", estado: capture.status });
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Pago no completado",
+        estado: capture.status,
+      });
     }
 
     await Aporte.create({
@@ -850,25 +1018,27 @@ const capturarPagoPayPal = async (req, res) => {
       status: "pagado",
     });
 
+    // capturarPagoPayPal — admin ve el pago en tesorería(revision)
+    req.io.emit("pago_completado");
+
     res.status(200).json({
       ok: true,
       mensaje: "¡Aporte realizado con éxito! Gracias por apoyar Amikuna.",
     });
 
     let tesoreria = await Tesoreria.findOne();
-      if (!tesoreria) {
-        tesoreria = await Tesoreria.create({ saldoTotal: 0, movimientos: [] });
-      }
+    if (!tesoreria) {
+      tesoreria = await Tesoreria.create({ saldoTotal: 0, movimientos: [] });
+    }
 
     tesoreria.saldoTotal += amount;
     tesoreria.movimientos.push({
-    tipo: "ingreso",
-    monto: amount,
-    razon: `Aporte de usuario vía PayPal - Orden ${orderId}`
+      tipo: "ingreso",
+      monto: amount,
+      razon: `Aporte de usuario vía PayPal - Orden ${orderId}`,
     });
 
-await tesoreria.save();
-
+    await tesoreria.save();
   } catch (error) {
     console.error("Error capturando pago PayPal:", error);
     res.status(500).json({ ok: false, mensaje: error.message });
@@ -887,26 +1057,26 @@ const iniciarChat = async (req, res) => {
 
     // Buscar si ya existe chat entre estos dos usuarios
     let chatExistente = await Chat.findOne({
-      participantes: sortedIds
+      participantes: sortedIds,
     });
 
     if (!chatExistente) {
       // Si no existe, crear uno nuevo
       chatExistente = await Chat.create({
         participantes: sortedIds,
-        mensajes: []
+        mensajes: [],
       });
 
       // Emitir eventos Socket.io para chat creado
       if (req.io) {
-        req.io.to(myId.toString()).emit('chat:created', {
+        req.io.to(myId.toString()).emit("chat:created", {
           chatId: chatExistente._id,
-          otherUserId: otherUserId
+          otherUserId: otherUserId,
         });
 
-        req.io.to(otherUserId.toString()).emit('chat:created', {
+        req.io.to(otherUserId.toString()).emit("chat:created", {
           chatId: chatExistente._id,
-          otherUserId: myId
+          otherUserId: myId,
         });
       }
     }
@@ -914,77 +1084,82 @@ const iniciarChat = async (req, res) => {
     // Responder con el chat existente o creado
     return res.status(200).json({
       success: true,
-      message: 'Chat listo',
-      chatId: chatExistente._id
+      message: "Chat listo",
+      chatId: chatExistente._id,
     });
-
   } catch (error) {
-    console.error('Error en iniciarChat:', error);
+    console.error("Error en iniciarChat:", error);
     return res.status(500).json({
-      error: 'Error interno del servidor',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: "Error interno del servidor",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
 
-
-
 const enviarMensaje = async (req, res) => {
-    try {
-        const { chatId } = req.params;
-        const { contenido } = req.body;
-        const emisorId = req.userBDD._id;
+  try {
+    const { chatId } = req.params;
+    const { contenido } = req.body;
+    const emisorId = req.userBDD._id;
 
-        if (!contenido || !chatId) {
-            return res.status(400).json({ msg: 'Contenido y chatId requeridos' });
-        }
-
-        const chat = await Chat.findById(chatId);
-        if (!chat || !chat.participantes.some(p => p.toString() === emisorId.toString())) {
-            return res.status(403).json({ msg: 'No tienes permiso para enviar mensajes en este chat' });
-        }
-
-        const nuevoMensaje = {
-            emisor: emisorId,
-            contenido,
-            createdAt: new Date()
-        };
-
-        const chatActualizado = await Chat.findByIdAndUpdate(
-            chatId,
-            { $push: { mensajes: nuevoMensaje } },
-            { new: true, runValidators: true } 
-        );
-
-        if (!chatActualizado) {
-            return res.status(404).json({ msg: 'Chat no encontrado durante la actualización' });
-        }
-
-        // Poblar la información del emisor en el último mensaje para que el otro usuario lo reciba completo
-        const mensajeFinal = await Chat.populate(chatActualizado, {
-            path: 'mensajes.emisor',
-            select: 'nombre imagenPerfil'
-        });
-
-        // El mensaje que se envía ahora contiene la info del emisor
-        const ultimoMensaje = mensajeFinal.mensajes[mensajeFinal.mensajes.length - 1];
-
-        if (req.io) {
-            req.io.to(`chat_${chatId}`).emit('mensaje:nuevo', {
-                chatId,
-                mensaje: ultimoMensaje
-            });
-        }
-
-        res.status(201).json({
-            msg: 'Mensaje enviado',
-            mensaje: ultimoMensaje
-        });
-
-    } catch (error) {
-        console.error('Error al enviar mensaje:', error);
-        res.status(500).json({ msg: 'Error interno del servidor' });
+    if (!contenido || !chatId) {
+      return res.status(400).json({ msg: "Contenido y chatId requeridos" });
     }
+
+    const chat = await Chat.findById(chatId);
+    if (
+      !chat ||
+      !chat.participantes.some((p) => p.toString() === emisorId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ msg: "No tienes permiso para enviar mensajes en este chat" });
+    }
+
+    const nuevoMensaje = {
+      emisor: emisorId,
+      contenido,
+      createdAt: new Date(),
+    };
+
+    const chatActualizado = await Chat.findByIdAndUpdate(
+      chatId,
+      { $push: { mensajes: nuevoMensaje } },
+      { new: true, runValidators: true },
+    );
+
+    if (!chatActualizado) {
+      return res
+        .status(404)
+        .json({ msg: "Chat no encontrado durante la actualización" });
+    }
+
+    // Poblar la información del emisor en el último mensaje para que el otro usuario lo reciba completo
+    const mensajeFinal = await Chat.populate(chatActualizado, {
+      path: "mensajes.emisor",
+      select: "nombre imagenPerfil",
+    });
+
+    // El mensaje que se envía ahora contiene la info del emisor
+    const ultimoMensaje =
+      mensajeFinal.mensajes[mensajeFinal.mensajes.length - 1];
+
+    if (req.io) {
+      req.io.to(`chat_${chatId}`).emit("mensaje:nuevo", {
+        chatId,
+        mensaje: ultimoMensaje,
+      });
+    }
+
+    res.status(201).json({
+      msg: "Mensaje enviado",
+      mensaje: ultimoMensaje,
+    });
+  } catch (error) {
+    console.error("Error al enviar mensaje:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
+  }
 };
 
 const obtenerMensajes = async (req, res) => {
@@ -992,24 +1167,28 @@ const obtenerMensajes = async (req, res) => {
     const { chatId } = req.params;
     const userId = req.userBDD._id;
 
-    const chat = await Chat.findById(chatId).populate('mensajes.emisor', 'nombre imagenPerfil');
+    const chat = await Chat.findById(chatId).populate(
+      "mensajes.emisor",
+      "nombre imagenPerfil",
+    );
 
     if (!chat) {
-      return res.status(404).json({ msg: 'Chat no encontrado' });
+      return res.status(404).json({ msg: "Chat no encontrado" });
     }
 
-    const esParticipante = chat.participantes.some(p =>
-      p.toString() === userId.toString()
+    const esParticipante = chat.participantes.some(
+      (p) => p.toString() === userId.toString(),
     );
     if (!esParticipante) {
-      return res.status(403).json({ msg: 'No tienes permiso para ver este chat' });
+      return res
+        .status(403)
+        .json({ msg: "No tienes permiso para ver este chat" });
     }
 
     res.status(200).json(chat.mensajes);
-
   } catch (error) {
-    console.error('Error al obtener mensajes:', error);
-    res.status(500).json({ msg: 'Error interno del servidor' });
+    console.error("Error al obtener mensajes:", error);
+    res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
 
@@ -1020,40 +1199,52 @@ const reportarUsuarioChat = async (req, res) => {
     const { razon } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(chatId)) {
-      return res.status(400).json({ msg: 'ID de chat inválido' });
+      return res.status(400).json({ msg: "ID de chat inválido" });
     }
 
     if (!razon || razon.trim().length < 5) {
-      return res.status(400).json({ msg: 'Por favor describe el motivo con al menos 5 caracteres' });
+      return res.status(400).json({
+        msg: "Por favor describe el motivo con al menos 5 caracteres",
+      });
     }
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
-      return res.status(404).json({ msg: 'Chat no encontrado' });
+      return res.status(404).json({ msg: "Chat no encontrado" });
     }
 
-    if (!chat.participantes.some(p => p.toString() === usuarioId.toString())) {
-      return res.status(403).json({ msg: 'No tienes permiso para reportar este chat' });
+    if (
+      !chat.participantes.some((p) => p.toString() === usuarioId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ msg: "No tienes permiso para reportar este chat" });
     }
 
-    const usuarioReportado = chat.participantes.find(p => p.toString() !== usuarioId.toString());
+    const usuarioReportado = chat.participantes.find(
+      (p) => p.toString() !== usuarioId.toString(),
+    );
     if (!usuarioReportado) {
-      return res.status(400).json({ msg: 'No se pudo identificar al usuario reportado' });
+      return res
+        .status(400)
+        .json({ msg: "No se pudo identificar al usuario reportado" });
     }
 
-    const admin = await users.findOne({ email: 'admin@epn.edu.ec' });
+    const admin = await users.findOne({ email: "admin@epn.edu.ec" });
     if (!admin) {
-      return res.status(500).json({ msg: 'Administrador no encontrado en el sistema' });
+      return res
+        .status(500)
+        .json({ msg: "Administrador no encontrado en el sistema" });
     }
 
     const nuevoStrike = new Strike({
       de: usuarioId,
       para: admin._id,
-      tipo: 'denuncia',
+      tipo: "denuncia",
       razon: razon.trim(),
       usuarioReportado,
       chat: chat._id,
-      status: 'pendiente'
+      status: "pendiente",
     });
 
     await nuevoStrike.save();
@@ -1061,37 +1252,46 @@ const reportarUsuarioChat = async (req, res) => {
     await HistorialNotificacion.create({
       usuario: admin._id,
       fromUser: usuarioId,
-      tipo: 'denuncia',
-      titulo: 'Nueva denuncia de usuario',
-      mensaje: `El usuario con ID ${usuarioId} reportó al usuario con ID ${usuarioReportado} en el chat ${chat._id}`
+      tipo: "denuncia",
+      titulo: "Nueva denuncia de usuario",
+      mensaje: `El usuario con ID ${usuarioId} reportó al usuario con ID ${usuarioReportado} en el chat ${chat._id}`,
     });
-
-    return res.status(201).json({ msg: 'Denuncia enviada correctamente', strike: nuevoStrike });
+    // reportarUsuarioChat + enviarStrike — admin recibe notificación
+    req.io.emit("notificacion_nueva");
+    return res
+      .status(201)
+      .json({ msg: "Denuncia enviada correctamente", strike: nuevoStrike });
   } catch (error) {
-    console.error('Error al reportar usuario:', error);
-    return res.status(500).json({ msg: 'Error interno al reportar usuario' });
+    console.error("Error al reportar usuario:", error);
+    return res.status(500).json({ msg: "Error interno al reportar usuario" });
   }
 };
 
-const   enviarStrike = async (req, res) => {
+const enviarStrike = async (req, res) => {
   try {
     const de = req.userBDD._id;
     const { tipo, razon } = req.body;
 
     // Buscar el ID del admin quemado
-    const admin = await users.findOne({ email: 'admin@epn.edu.ec' });
+    const admin = await users.findOne({ email: "admin@epn.edu.ec" });
 
     if (!admin) {
-      return res.status(500).json({ msg: 'Administrador no encontrado en el sistema' });
+      return res
+        .status(500)
+        .json({ msg: "Administrador no encontrado en el sistema" });
     }
 
     // Validaciones
-    if (!['queja', 'sugerencia', 'denuncia'].includes(tipo)) {
-      return res.status(400).json({ msg: "Tipo debe ser 'queja', 'sugerencia' o 'denuncia'" });
+    if (!["queja", "sugerencia", "denuncia"].includes(tipo)) {
+      return res
+        .status(400)
+        .json({ msg: "Tipo debe ser 'queja', 'sugerencia' o 'denuncia'" });
     }
 
     if (!razon || razon.trim().length < 5) {
-      return res.status(400).json({ msg: "La razón debe tener al menos 5 caracteres" });
+      return res
+        .status(400)
+        .json({ msg: "La razón debe tener al menos 5 caracteres" });
     }
 
     // Crear strike dirigido al admin
@@ -1099,15 +1299,14 @@ const   enviarStrike = async (req, res) => {
       de,
       para: admin._id,
       tipo,
-      razon
+      razon,
     });
 
     await nuevoStrike.save();
 
     res.status(201).json({
-      msg: `Tu ${tipo} ha sido enviada al administrador. Pronto revisará tu mensaje.`
+      msg: `Tu ${tipo} ha sido enviada al administrador. Pronto revisará tu mensaje.`,
     });
-
   } catch (error) {
     console.error("Error al enviar queja/sugerencia:", error);
     res.status(500).json({ msg: "Error interno del servidor" });
@@ -1119,13 +1318,13 @@ const verMisStrikes = async (req, res) => {
     const usuarioId = req.userBDD._id;
 
     const strikes = await Strike.find({ de: usuarioId })
-      .populate('para', 'nombre apellido email')
+      .populate("para", "nombre apellido email")
       .sort({ fecha: -1 })
       .lean();
 
-    res.status(200).json({ 
+    res.status(200).json({
       msg: "Consulta realizada exitosamente",
-      strikes 
+      strikes,
     });
   } catch (error) {
     console.error("Error al obtener strikes:", error);
@@ -1133,8 +1332,7 @@ const verMisStrikes = async (req, res) => {
   }
 };
 
-
-export { 
+export {
   completarPerfil,
   agregarFotosGaleria,
   eliminarFotoGaleria,
@@ -1161,6 +1359,5 @@ export {
   reportarUsuarioChat,
   enviarStrike,
   obtenerHistorialChatbot,
-  verMisStrikes
-}
-
+  verMisStrikes,
+};

@@ -35,7 +35,7 @@ export const initSocket = (server) => {
   });
 
   io.on('connection', async (socket) => {
-    console.log(`Usuario conectado: ${socket.user._id} (${socket.id})`);
+    //console.log(`Usuario conectado: ${socket.user._id} (${socket.id})`);
 
     socket.join(socket.user._id.toString());
     // Unirse a salas de chats existentes
@@ -82,7 +82,7 @@ export const initSocket = (server) => {
     });
 
     socket.on('disconnect', () => {
-      console.log(`Usuario desconectado: ${socket.user._id}`);
+      //console.log(`Usuario desconectado: ${socket.user._id}`);
     });
   });
 

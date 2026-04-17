@@ -8,6 +8,8 @@ import { v2 as cloudinary } from 'cloudinary'
 import router from './routers/admin_routes.js';
 import estudianteRoutes from './routers/estudiante_routes.js'
 import path from 'path';
+import { initSocket } from './sockets/socket.js'      
+import { injectIO } from './middlewares/injectIO.js'
 
 // Inicializaciones 
 const app = express()
@@ -34,18 +36,15 @@ const corsOptions = {
 
 app.use(cors(corsOptions))
 
-const io = new Server(httpServer, {           
-  cors: {
-    origin: process.env.URL_FRONTEND,
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-})
-
 app.use(fileUpload({
     useTempFiles : true,
     tempFileDir : '/tmp/'
 }));
+
+//Inicializar socket UNA sola vez usando sockets/socket.js
+initSocket(httpServer)
+//inicializar middleware para inyectar io en req en todoas las rutas
+app.use(injectIO)
 
 // Configuraciones 
 app.set(`port`, process.env.PORT || 3000)
