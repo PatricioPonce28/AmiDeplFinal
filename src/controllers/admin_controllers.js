@@ -74,7 +74,6 @@ const registro = async (req, res) => {
   newUser.crearToken();
   await newUser.save();
 
-  
   try {
     const confirmationLink = `${process.env.URL_FRONTEND}/confirmar/${newUser.token}`;
 
@@ -111,9 +110,6 @@ const confirmarMail = async (req, res) => {
   await userBDD.save();
   res.status(200).json({ msg: "Token confirmado, ya puedes iniciar sesión" });
 };
-
-
-
 
 const recuperarPassword = async (req, res) => {
   const { email } = req.body;
@@ -403,6 +399,11 @@ const crearEvento = async (req, res) => {
     if (!titulo || !descripcion || !fecha || !hora || !lugar) {
       return res.status(400).json({ msg: "Todos los campos son obligatorios" });
     }
+    const errorValidacion = validarFechaHoraEvento(fecha, hora);
+    if (errorValidacion) {
+      return res.status(400).json({ msg: errorValidacion });
+    }
+
     const errorValidacion = validarFechaHoraEvento(fecha, hora);
     if (errorValidacion) {
       return res.status(400).json({ msg: errorValidacion });
