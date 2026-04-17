@@ -89,7 +89,7 @@ const userSchema = new Schema({
   },
   token: {
     type: String,
-    default: false
+    default: null
   }, 
 }, {
   timestamps: true

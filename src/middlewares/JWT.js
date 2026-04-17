@@ -24,10 +24,13 @@ const verificarTokenJWT = async (req, res, next) => {
     if (!userBDD) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
-
+    if (userBDD.token !== token) {
+      return res
+        .status(401)
+        .json({ msg: "Sesión inválida o cerrada en otro dispositivo" });
+    }
     req.userBDD = userBDD; // ← Aseguramos que no es null
     next();
-
   } catch (error) {
     console.error("Error al verificar token:", error);
     return res.status(401).json({ msg: "Token no válido o expirado" });

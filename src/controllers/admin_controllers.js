@@ -256,6 +256,9 @@ const login = async (req, res) => {
         .json({ msg: "Lo sentimos, el password es incorrecto" });
     }
     const token = crearTokenJWT(userBDD._id, userBDD.rol);
+    userBDD.token = token;   // ← guardar en DB
+    await userBDD.save(); 
+    
     const { _id, nombre, apellido, email: userEmail, rol } = userBDD;
 
     return res.status(200).json({
