@@ -404,11 +404,6 @@ const crearEvento = async (req, res) => {
       return res.status(400).json({ msg: errorValidacion });
     }
 
-    const errorValidacion = validarFechaHoraEvento(fecha, hora);
-    if (errorValidacion) {
-      return res.status(400).json({ msg: errorValidacion });
-    }
-
     let imagen = "";
 
     if (req.files?.imagen) {
