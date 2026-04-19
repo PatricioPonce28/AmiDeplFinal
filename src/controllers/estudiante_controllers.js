@@ -768,17 +768,37 @@ const listarMatches = async (req, res) => {
 
 const obtenerEventos = async (req, res) => {
   try {
+    const ahora = new Date();
+
     const eventosRaw = await Evento.find({ activo: true })
-      //  populamos ambos arrays
       .populate("asistentes", "nombre apellido")
       .populate("noAsistiran", "nombre apellido")
-
       .select("-__v -createdAt -updatedAt -creador")
       .lean();
 
-    const eventos = eventosRaw.map((evento) => ({
-      ...evento,
-      _id: evento._id.toString(),
+    const eventosFiltrados = eventosRaw
+      .filter((evento) => {
+        const [horas, minutos] = evento.hora.split(":").map(Number);
+        const fechaEvento = new Date(evento.fecha);
+        fechaEvento.setUTCHours(horas + 5, minutos, 0, 0);
+        return fechaEvento >= ahora;
+      })
+      .sort((a, b) => {
+        // Construir fecha+hora completa para comparar
+        const [hA, mA] = a.hora.split(":").map(Number);
+        const fechaA = new Date(a.fecha);
+        fechaA.setUTCHours(hA + 5, mA, 0, 0);
+
+        const [hB, mB] = b.hora.split(":").map(Number);
+        const fechaB = new Date(b.fecha);
+        fechaB.setUTCHours(hB + 5, mB, 0, 0);
+
+        return fechaA - fechaB; // ← más próximo a expirar primero
+      });
+
+    const eventos = eventosFiltrados.map((e) => ({
+      ...e,
+      _id: e._id.toString(),
     }));
 
     res.status(200).json(eventos);
