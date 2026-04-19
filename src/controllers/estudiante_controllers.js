@@ -747,22 +747,29 @@ const seguirUsuario = async (req, res) => {
 
 const listarMatches = async (req, res) => {
   try {
-    const usuario = await users.findById(req.userBDD._id);
+    const usuarioConPopulate = await users
+      .findById(req.userBDD._id)
+      .populate({ path: "matches" });
 
-    console.log("Usuario sin populate:", usuario);
+    const miId = req.userBDD._id; // ← corregido
 
-    const usuarioConPopulate = await users.findById(req.userBDD._id).populate({
-      path: "matches",
-    });
+    const matchesConChat = await Promise.all(
+      usuarioConPopulate.matches.map(async (match) => {
+        const chat = await Chat.findOne({
+          participantes: { $all: [miId, match._id] },
+        }).select("_id");
 
-    console.log("Matches con populate:", usuarioConPopulate.matches);
+        return {
+          ...match.toObject(),
+          chatId: chat?._id?.toString() || null,
+        };
+      })
+    );
 
-    res.status(200).json(usuarioConPopulate.matches);
+    res.status(200).json(matchesConChat); // ← solo una respuesta
   } catch (error) {
     console.error("Error al listar matches:", error);
-    res
-      .status(500)
-      .json({ msg: "Error al listar matches", error: error.message });
+    res.status(500).json({ msg: "Error al listar matches", error: error.message });
   }
 };
 
