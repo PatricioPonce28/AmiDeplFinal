@@ -29,21 +29,17 @@ const validarFechaHoraEvento = (fecha, hora) => {
     return 'La hora debe tener el formato HH:mm válido.';
   }
 
-  const fechaHoraEvento = new Date(`${fecha}T${hora}:00`);
+  // Combinar fecha y hora como UTC-5 (Ecuador)
+  const fechaHoraEvento = new Date(`${fecha}T${hora}:00-05:00`);
+
   if (Number.isNaN(fechaHoraEvento.getTime())) {
     return 'Fecha o hora del evento inválida.';
   }
 
   const ahora = new Date();
-  const fechaEventoSolo = new Date(fechaHoraEvento.toDateString());
-  const hoySolo = new Date(ahora.toDateString());
 
-  if (fechaEventoSolo < hoySolo) {
-    return 'No se pueden crear eventos con fecha anterior a hoy.';
-  }
-
-  if (fechaEventoSolo.getTime() === hoySolo.getTime() && fechaHoraEvento < ahora) {
-    return 'No se pueden crear eventos con hora anterior a la hora actual.';
+  if (fechaHoraEvento <= ahora) {
+    return 'La fecha y hora del evento deben ser futuras.';
   }
 
   return null;
