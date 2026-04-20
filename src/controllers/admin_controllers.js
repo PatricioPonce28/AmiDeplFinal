@@ -401,6 +401,9 @@ const crearEvento = async (req, res) => {
     if (!titulo || !descripcion || !fecha || !hora || !lugar) {
       return res.status(400).json({ msg: "Todos los campos son obligatorios" });
     }
+    if (!req.files?.imagen) {
+      return res.status(400).json({ msg: "La imagen del evento es obligatoria." });
+    }
     const errorValidacion = validarFechaHoraEvento(fecha, hora);
     if (errorValidacion) {
       return res.status(400).json({ msg: errorValidacion });
