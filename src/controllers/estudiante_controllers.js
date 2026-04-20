@@ -1044,11 +1044,6 @@ const capturarPagoPayPal = async (req, res) => {
     // capturarPagoPayPal — admin ve el pago en tesorería(revision)
     req.io.emit("pago_completado");
 
-    res.status(200).json({
-      ok: true,
-      mensaje: "¡Aporte realizado con éxito! Gracias por apoyar Amikuna.",
-    });
-
     let tesoreria = await Tesoreria.findOne();
     if (!tesoreria) {
       tesoreria = await Tesoreria.create({ saldoTotal: 0, movimientos: [] });
@@ -1062,6 +1057,12 @@ const capturarPagoPayPal = async (req, res) => {
     });
 
     await tesoreria.save();
+
+    res.status(200).json({
+      ok: true,
+      mensaje: "¡Aporte realizado con éxito! Gracias por apoyar Amikuna.",
+    });
+
   } catch (error) {
     console.error("Error capturando pago PayPal:", error);
     res.status(500).json({ ok: false, mensaje: error.message });
