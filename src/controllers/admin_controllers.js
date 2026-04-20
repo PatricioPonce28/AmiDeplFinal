@@ -118,37 +118,36 @@ const recuperarPassword = async (req, res) => {
     return res.status(400).json({ msg: "El correo es obligatorio" });
   }
 
-  const userBDD = await users.findOne({ email });
-  if (!userBDD) {
-    return res.status(404).json({ msg: "Usuario no registrado" });
-  }
-
-  //  Generar token seguro
-  const token = crypto.randomBytes(32).toString("hex");
-
-  userBDD.token = token;
-  userBDD.tokenExpira = Date.now() + 1000 * 60 * 60; // 1 hora
-  await userBDD.save();
-
-  //  Link REAL de tu sistema
-  const recoveryLink = `${process.env.URL_FRONTEND}/nuevopassword/${token}`;
-
   try {
-    //  Usamos Supabase SOLO para disparar el correo
-    await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: recoveryLink,
-      },
+    const userBDD = await users.findOne({ email });
+    if (!userBDD) {
+      return res.status(404).json({ msg: "Usuario no registrado" });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    userBDD.token = token;
+    userBDD.tokenExpira = Date.now() + 1000 * 60 * 60;
+    await userBDD.save();
+
+    const recoveryLink = `${process.env.URL_FRONTEND}/nuevopassword/${token}`;
+
+    // ✅ Método correcto para recuperar password en Supabase
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: recoveryLink,
     });
+
+    if (error) {
+      console.error("Error Supabase:", error.message);
+      return res.status(500).json({ msg: "Error enviando correo" });
+    }
 
     return res.status(200).json({
       msg: "Revisa tu correo para recuperar tu contraseña",
     });
+
   } catch (error) {
-    return res.status(500).json({
-      msg: "Error enviando correo",
-    });
+    console.error("Error recuperando password:", error);
+    return res.status(500).json({ msg: "Error enviando correo" });
   }
 };
 
