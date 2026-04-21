@@ -11,7 +11,7 @@ import Strike from "../models/strikes.js";
 import HistorialConChatbot from "../models/historialConChatbot.js";
 import HistorialNotificacion from "../models/HistorialNotificacion.js";
 import fetch from "node-fetch";
-
+import paypal from '@paypal/checkout-server-sdk'
 
 const getCloudinaryPublicIdFromUrl = (url) => {
   if (!url || typeof url !== "string") return null;
