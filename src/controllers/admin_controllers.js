@@ -684,9 +684,7 @@ const eliminarMatchYChat = async (req, res) => {
   try {
     const usuario = req.userBDD;
     if (!usuario || usuario.rol !== "admin") {
-      return res
-        .status(403)
-        .json({ msg: "Acceso denegado: solo administradores" });
+      return res.status(403).json({ msg: "Acceso denegado: solo administradores" });
     }
 
     const { strikeId } = req.params;
@@ -695,14 +693,12 @@ const eliminarMatchYChat = async (req, res) => {
     }
 
     const strike = await Strike.findById(strikeId);
-    if (!strike || !strike.usuarioReportado || !strike.chat) {
-      return res
-        .status(404)
-        .json({ msg: "Strike o datos asociados no encontrados" });
+    // ✅ Ya no se exige strike.chat para continuar
+    if (!strike || !strike.usuarioReportado) {
+      return res.status(404).json({ msg: "Strike o datos asociados no encontrados" });
     }
 
-    const chat = await Chat.findByIdAndDelete(strike.chat);
-
+    // ✅ Se elimina solo el match (sin tocar el chat)
     await users.findByIdAndUpdate(strike.de, {
       $pull: {
         matches: strike.usuarioReportado,
@@ -721,19 +717,18 @@ const eliminarMatchYChat = async (req, res) => {
 
     strike.status = "resuelto";
     await strike.save();
-    //eliminarMatch — notifica a ambos usuarios
-    req.io.emit("match_eliminado", { id })
+
+    // ✅ Se pasa strikeId como identificador del evento
+    req.io.to(`user:${strike.de}`).emit("match_eliminado", { id: strikeId });
+    req.io.to(`user:${strike.usuarioReportado}`).emit("match_eliminado", { id: strikeId });
 
     return res.status(200).json({
-      msg: "Match y chat eliminados con éxito",
-      chatEliminado: !!chat,
+      msg: "Match eliminado con éxito",
       strike,
     });
   } catch (error) {
-    console.error("Error eliminando match/chat:", error);
-    return res
-      .status(500)
-      .json({ msg: "Error interno al eliminar match y chat" });
+    console.error("Error eliminando match:", error);
+    return res.status(500).json({ msg: "Error interno al eliminar el match" });
   }
 };
 
