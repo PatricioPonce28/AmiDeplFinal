@@ -468,6 +468,15 @@ const reemplazarFotoGaleria = async (req, res) => {
   }
 };
 
+const webhookBotpress = async (req, res) => {
+  try {
+    console.log("Botpress webhook:", JSON.stringify(req.body, null, 2));
+    res.status(200).json({ received: true });
+  } catch (error) {
+    res.status(500).json({ msg: "Error en webhook" });
+  }
+};
+
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
@@ -477,38 +486,77 @@ const chatEstudiante = async (req, res) => {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
     }
 
-    const model = getModel();
+    const headers = {
+      Authorization: `Bearer ${process.env.BOTPRESS_TOKEN}`,
+      "x-bot-id": process.env.BOTPRESS_BOT_ID,
+      "Content-Type": "application/json",
+    };
 
-    const prompt = `
-Eres un asistente amigable en una aplicación que promueve la interacción social llamada Amikuna. 
-Ayudas a los usuarios a iniciar conversaciones, respondes todo tipo de preguntas y ayudas en base a tu código fuente. 
-Responde siempre con un tono informal pero con buena ortografía.
-Recuerda que eres un chatbot y no puedes recibir mensajes de voz, imágenes o videos, solo texto y debes (si puedes usar emojis).
-Usa lenguaje natural, que no parezca escrito por una IA.
-Usa jerga y expresiones de Ecuador.
-Además, te voy a mapear la aplicación por si alguien no sabe como funciona y guíes por si no saben como funciona la aplicación web:
-Al principio cuando te registras hay un formulario que debes llenar con tu información personal sino no puedes ver a otros usuarios.
-En la parte izquierda verás "Tu perfil" donde está esa información que llenaste junto con tus seguidores y seguidos bajo esta parte 
-hay una galería de las fotos que has subido. 
-En la parte superior central tienes opciones como: Perfil el cual te ayuda a cambiar la información personal del formulario.
-Al lado de eso encontamos Fotos donde puedes subir, modificar, eliminar fotos de una galería (la que mencionamos hace un momento). 
-A un lado hay Notificaciones que te llegan cuando una persona te sigue, cuando el administrador crea eventos, cuando una persona te sigue de vuelta
-se crea el "match" y automáticamente se genera un chat para chatear con esa persona. Al lado derecho hay una parte llamada Chatbot donde se abre esta interfaz
-donde vas a leer el mensaje del usuario más adelante. Al lado derecho también dice "Feedback" donde puedes enviar quejas o sugerencias al administrador 
-y ver las enviadas junto con la respuesta del admin. A un lado de eso dice salir para cerrar la sesión.
-En la parte superior derecha encuentras los eventos creados por el administrador y un pequeño botón parte tienes "Mis eventos" y se ve los eventos 
-a los que accediste ir. En la parte central vas a ver los candidatos a match, es decir, personas que cumplen con tus preferencias y que no has visto antes para que puedas
-seguirlos o no seguirlos. Una vez que sigues a alguien esa persona recibe la notificación y puede seguirte de vuelta y si eso sucede se abre automáticamente 
-un chat que puedes ver en la parte derecha de la pantalla donde dice "Matches con quien chatear" y ahí pueden enviarse mensajes.
-Además, el chat tiene una banderita que dice "Reportar Usuario" y si te incomodó el chat debes enviar la denuncia y se eliminará el match una vez que el administrador 
-vea y decida que hacer (Por lo general una denuncia rompe el match y no puedes ver a esa persona de nuevo en la app). 
-En la parte de aportes se puede hacer un pago para ayudar a que AmiKuna mejore, el concepto es Aporte voluntario y es para gastarlo en mejorar la aplicación.
+    // 1️⃣ Crear o recuperar conversación del usuario
+    const convResponse = await fetch(
+      "https://api.botpress.cloud/v1/chat/conversations",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          integrationName: "api",
+          channel: "api",  
+          tags: {},
+          userId: usuarioId.toString(),  
+        }),
+      }
+    );
 
-Mensaje del usuario: "${mensaje}"
-`;
+    const convData = await convResponse.json();
 
-    const texto = await generarConRetry(model, prompt);
+    if (!convResponse.ok) {
+      console.error("Error creando conversación:", convData);
+      return res.status(502).json({ msg: "Error al crear conversación" });
+    }
 
+    const conversationId = convData.conversation?.id;
+
+    // 2️⃣ Enviar el mensaje a esa conversación
+    const msgResponse = await fetch(
+      "https://api.botpress.cloud/v1/chat/messages",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          conversationId,
+          userId: usuarioId.toString(),
+          type: "text",
+          payload: {
+            text: mensaje,
+          },
+          tags: {},
+        }),
+      }
+    );
+
+    const msgData = await msgResponse.json();
+
+    if (!msgResponse.ok) {
+      console.error("Error enviando mensaje:", msgData);
+      return res.status(502).json({ msg: "Error al enviar mensaje" });
+    }
+
+    // 3️⃣ Esperar respuesta del bot (polling simple)
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const messagesResponse = await fetch(
+      `https://api.botpress.cloud/v1/chat/conversations/${conversationId}/messages`,
+      { method: "GET", headers }
+    );
+
+    const messagesData = await messagesResponse.json();
+
+    // Obtener el último mensaje del bot
+    const respuestaBot = messagesData.messages
+      ?.filter((m) => m.direction === "outgoing")
+      ?.at(-1)?.payload?.text || "Sin respuesta del bot";
+
+    // 4️⃣ Guardar en MongoDB
     await HistorialConChatbot.findOneAndUpdate(
       { usuario: usuarioId },
       {
@@ -516,25 +564,19 @@ Mensaje del usuario: "${mensaje}"
           mensajes: {
             $each: [
               { rol: "usuario", contenido: mensaje },
-              { rol: "asistente", contenido: texto },
+              { rol: "asistente", contenido: respuestaBot },
             ],
           },
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, new: true }
     );
 
-    res.status(200).json({ respuesta: texto });
+    res.status(200).json({ respuesta: respuestaBot });
+
   } catch (error) {
-    console.error("Error con Gemini:", error);
-    if (error.status === 429) {
-      return res
-        .status(429)
-        .json({ msg: "Límite alcanzado, intenta en unos segundos." });
-    }
-    res
-      .status(500)
-      .json({ msg: "Error interno al consultar", error: error.message });
+    console.error("Error chatbot:", error);
+    res.status(500).json({ msg: "Error interno", error: error.message });
   }
 };
 
@@ -542,7 +584,9 @@ const obtenerHistorialChatbot = async (req, res) => {
   try {
     const usuarioId = req.userBDD._id;
 
-    const historial = await HistorialConChatbot.findOne({ usuario: usuarioId });
+    const historial = await HistorialConChatbot.findOne({
+      usuario: usuarioId,
+    });
 
     if (!historial) {
       return res.status(200).json({ mensajes: [] });
@@ -550,8 +594,7 @@ const obtenerHistorialChatbot = async (req, res) => {
 
     res.status(200).json({ mensajes: historial.mensajes });
   } catch (error) {
-    console.error("Error al obtener historial:", error);
-    res.status(500).json({ msg: "Error al obtener historial" });
+    res.status(500).json({ msg: "Error al obtener historial", error: error.message });
   }
 };
 
@@ -1362,6 +1405,7 @@ export {
   agregarFotosGaleria,
   eliminarFotoGaleria,
   reemplazarFotoGaleria,
+  webhookBotpress,
   chatEstudiante,
   obtenerPerfilCompleto,
   listarPotencialesMatches,

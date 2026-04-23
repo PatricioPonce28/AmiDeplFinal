@@ -127,7 +127,6 @@ const recuperarPassword = async (req, res) => {
 
     const recoveryLink = `${process.env.URL_FRONTEND}/nuevopassword/${token}`;
 
-    // ✅ Método correcto para recuperar password en Supabase
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: recoveryLink,
     });
