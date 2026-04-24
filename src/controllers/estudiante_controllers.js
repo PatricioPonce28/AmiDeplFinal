@@ -324,6 +324,8 @@ const completarPerfil = async (req, res) => {
 
     await usuario.save();
 
+    req.io.to(req.userBDD._id.toString()).emit("perfil_cambio");
+
     req.userBDD = usuario;
 
     const { password, token, __v, createdAt, updatedAt, ...perfil } = usuario.toObject();
