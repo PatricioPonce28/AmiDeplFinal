@@ -2,7 +2,7 @@ import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, obtenerMisEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
     crearOrdenPayPal, getPayPalToken, capturarPagoPayPal, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
-    reportarUsuarioChat, webhookBotpress
+    reportarUsuarioChat
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
 import { perfilCompleto } from '../middlewares/perfilCompleto.js'
@@ -19,8 +19,6 @@ router.post("/galeria", verificarTokenJWT, agregarFotosGaleria);
 router.delete("/galeria", verificarTokenJWT, eliminarFotoGaleria);
 router.put("/galeria/:index", verificarTokenJWT, reemplazarFotoGaleria);
 
-// WebHook para Botpress (si es necesario)
-router.post("/webhook/botpress", webhookBotpress);
 
 // Ruta para chatbot
 router.post('/perfil/chat', verificarTokenJWT, chatEstudiante);

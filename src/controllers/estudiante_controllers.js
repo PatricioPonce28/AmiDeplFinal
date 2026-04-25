@@ -12,6 +12,8 @@ import HistorialConChatbot from "../models/historialConChatbot.js";
 import HistorialNotificacion from "../models/HistorialNotificacion.js";
 import fetch from "node-fetch";
 import paypal from '@paypal/checkout-server-sdk'
+import { v4 as uuidv4 } from 'uuid'
+import { Client } from '@botpress/chat';
 
 const getCloudinaryPublicIdFromUrl = (url) => {
   if (!url || typeof url !== "string") return null;
@@ -468,97 +470,52 @@ const reemplazarFotoGaleria = async (req, res) => {
   }
 };
 
-const webhookBotpress = async (req, res) => {
-  try {
-    console.log("Botpress webhook:", JSON.stringify(req.body, null, 2));
-    res.status(200).json({ received: true });
-  } catch (error) {
-    res.status(500).json({ msg: "Error en webhook" });
-  }
-};
-
+// 🔵 Enviar mensaje al bot y guardar historial
 const chatEstudiante = async (req, res) => {
   try {
     const { mensaje } = req.body;
-    const usuarioId = req.userBDD._id;
+    const usuarioId = req.userBDD._id.toString();
 
     if (!mensaje) {
       return res.status(400).json({ msg: "Debes enviar un mensaje" });
     }
 
-    const headers = {
-      Authorization: `Bearer ${process.env.BOTPRESS_TOKEN}`,
-      "x-bot-id": process.env.BOTPRESS_BOT_ID,
-      "Content-Type": "application/json",
-    };
+    // 1️⃣ Conectar al bot
+    const client = await Client.connect({
+      webhookId: process.env.BOTPRESS_WEBHOOK_ID,
+    });
 
-    // 1️⃣ Crear o recuperar conversación del usuario
-    const convResponse = await fetch(
-      "https://api.botpress.cloud/v1/chat/conversations",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          integrationName: "api",
-          channel: "api",  
-          tags: {},
-          userId: usuarioId.toString(),  
-        }),
-      }
-    );
+    // 2️⃣ Crear conversación
+    const { conversation } = await client.createConversation({});
 
-    const convData = await convResponse.json();
+    // 3️⃣ Enviar mensaje del usuario
+    await client.createMessage({
+      conversationId: conversation.id,
+      payload: {
+        type: "text",
+        text: mensaje,
+      },
+    });
 
-    if (!convResponse.ok) {
-      console.error("Error creando conversación:", convData);
-      return res.status(502).json({ msg: "Error al crear conversación" });
+    // 4️⃣ Esperar que el bot procese
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // 5️⃣ Obtener mensajes de la conversación
+    const { messages } = await client.listMessages({
+      conversationId: conversation.id,
+    });
+
+    // 6️⃣ Extraer respuesta del bot (messages[0] es el más reciente = el bot)
+    let respuestaBot = "Sin respuesta";
+    const mensajeBot = messages.find((m) => m.userId !== client.user?.id) || messages[0];
+
+    if (mensajeBot?.payload?.text) {
+      respuestaBot = String(mensajeBot.payload.text);
     }
 
-    const conversationId = convData.conversation?.id;
-
-    // 2️⃣ Enviar el mensaje a esa conversación
-    const msgResponse = await fetch(
-      "https://api.botpress.cloud/v1/chat/messages",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          conversationId,
-          userId: usuarioId.toString(),
-          type: "text",
-          payload: {
-            text: mensaje,
-          },
-          tags: {},
-        }),
-      }
-    );
-
-    const msgData = await msgResponse.json();
-
-    if (!msgResponse.ok) {
-      console.error("Error enviando mensaje:", msgData);
-      return res.status(502).json({ msg: "Error al enviar mensaje" });
-    }
-
-    // 3️⃣ Esperar respuesta del bot (polling simple)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    const messagesResponse = await fetch(
-      `https://api.botpress.cloud/v1/chat/conversations/${conversationId}/messages`,
-      { method: "GET", headers }
-    );
-
-    const messagesData = await messagesResponse.json();
-
-    // Obtener el último mensaje del bot
-    const respuestaBot = messagesData.messages
-      ?.filter((m) => m.direction === "outgoing")
-      ?.at(-1)?.payload?.text || "Sin respuesta del bot";
-
-    // 4️⃣ Guardar en MongoDB
+    // 7️⃣ Guardar en MongoDB
     await HistorialConChatbot.findOneAndUpdate(
-      { usuario: usuarioId },
+      { usuario: req.userBDD._id },
       {
         $push: {
           mensajes: {
@@ -573,26 +530,19 @@ const chatEstudiante = async (req, res) => {
     );
 
     res.status(200).json({ respuesta: respuestaBot });
-
   } catch (error) {
     console.error("Error chatbot:", error);
     res.status(500).json({ msg: "Error interno", error: error.message });
   }
 };
 
+// 🟢 Obtener historial del usuario
 const obtenerHistorialChatbot = async (req, res) => {
   try {
-    const usuarioId = req.userBDD._id;
-
     const historial = await HistorialConChatbot.findOne({
-      usuario: usuarioId,
+      usuario: req.userBDD._id,
     });
-
-    if (!historial) {
-      return res.status(200).json({ mensajes: [] });
-    }
-
-    res.status(200).json({ mensajes: historial.mensajes });
+    res.status(200).json({ mensajes: historial?.mensajes || [] });
   } catch (error) {
     res.status(500).json({ msg: "Error al obtener historial", error: error.message });
   }
@@ -1405,7 +1355,6 @@ export {
   agregarFotosGaleria,
   eliminarFotoGaleria,
   reemplazarFotoGaleria,
-  webhookBotpress,
   chatEstudiante,
   obtenerPerfilCompleto,
   listarPotencialesMatches,

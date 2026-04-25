@@ -12,6 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@botpress/chat": "^0.5.5",
     "@getbrevo/brevo": "^5.0.1",
     "@google/genai": "^1.8.0",
     "@google/generative-ai": "^0.24.1",
@@ -33,6 +34,7 @@
     "nodemailer": "^7.0.13",
     "resend": "^6.9.3",
     "socket.io": "^4.8.1",
-    "stripe": "^18.1.1"
+    "stripe": "^18.1.1",
+    "uuid": "^14.0.0"
   }
 }
