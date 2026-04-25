@@ -272,10 +272,11 @@ const completarPerfil = async (req, res) => {
     }
 
     const interesInvalido = intereses.find(i => /\s/.test(i));
-      if (interesInvalido) {
-        return res.status(400).json({ 
+    if (interesInvalido) {
+      return res.status(400).json({ 
         msg: `El interés "${interesInvalido}" no debe contener espacios. Separa los intereses por comas sin espacios. Ejemplo: futbol,musica,arte` 
       });
+    }
 
     // Validar mayoría de edad (18 años)
     const hoy = new Date();
