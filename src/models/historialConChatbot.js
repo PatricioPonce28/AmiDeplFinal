@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const mensajeSchema = new mongoose.Schema({
   rol: {
     type: String,
-    enum: ["usuario", "asistente"], // ← array, no string
+    enum: ["usuario", "asistente"], 
     required: true
   },
   contenido: { type: String, required: true },
@@ -17,6 +17,8 @@ const historialSchema = new mongoose.Schema({ // ← variable diferente al model
     required: true,
     unique: true
   },
+  conversationId: { type: String, default: null },
+  botpressUserId: { type: String, default: null },
   mensajes: [mensajeSchema]
 }, { timestamps: true });
 

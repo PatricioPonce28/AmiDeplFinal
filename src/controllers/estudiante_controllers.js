@@ -479,83 +479,115 @@ const reemplazarFotoGaleria = async (req, res) => {
   }
 };
 
-// 🔵 Enviar mensaje al bot y guardar historial
+// ─── Crear sesión nueva ───────────────────────────────────────────────────────
+const crearSesionBotpress = async () => {
+  const client = await Client.connect({
+    webhookId: process.env.BOTPRESS_WEBHOOK_ID,
+  });
+
+  const { conversation } = await client.createConversation({});
+  return { client, conversationId: conversation.id };
+};
+
+// ─── Escuchar respuesta por SSE ───────────────────────────────────────────────
+const esperarRespuestaBot = (client, conversationId, timeoutMs = 30000) => {
+  return new Promise(async (resolve) => {
+    const timer = setTimeout(() => {
+      resolve(null);
+    }, timeoutMs);
+
+    try {
+      const listener = await client.listenConversation({ id: conversationId });
+
+      // Escuchar cualquier evento para ver qué llega
+      const eventNames = ["message_created", "message", "event_created", "*"];
+      for (const evt of eventNames) {
+        try {
+          listener.on(evt, (data) => {
+            const texto = data?.payload?.text ?? data?.data?.payload?.text;
+            if (texto) {
+              clearTimeout(timer);
+              listener.close?.();
+              resolve(texto);
+            }
+          });
+        } catch (_) {}
+      }
+
+    } catch (err) {
+      console.error("Error en listenConversation:", err.message);
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
+};
+
+// ─── Controller principal ─────────────────────────────────────────────────────
 const chatEstudiante = async (req, res) => {
+  const { mensaje } = req.body;
+  const usuarioId = req.userBDD._id;
+
+  if (!mensaje?.trim()) {
+    return res.status(400).json({ msg: "Debes enviar un mensaje" });
+  }
+
   try {
-    const { mensaje } = req.body;
-    const usuarioId = req.userBDD._id.toString();
+    const { client, conversationId } = await crearSesionBotpress();
 
-    if (!mensaje) {
-      return res.status(400).json({ msg: "Debes enviar un mensaje" });
-    }
+    // 1️⃣ Listener ANTES de enviar
+    const promesaRespuesta = esperarRespuestaBot(client, conversationId, 30000);
 
-    // 1️⃣ Conectar al bot
-    const client = await Client.connect({
-      webhookId: process.env.BOTPRESS_WEBHOOK_ID,
-    });
-
-    // 2️⃣ Crear conversación
-    const { conversation } = await client.createConversation({});
-
-    // 3️⃣ Enviar mensaje del usuario
+    // 2️⃣ Enviar mensaje
     await client.createMessage({
-      conversationId: conversation.id,
-      payload: {
-        type: "text",
-        text: mensaje,
-      },
+      conversationId,
+      payload: { type: "text", text: mensaje },
     });
 
-    // 4️⃣ Esperar que el bot procese
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    // 3️⃣ Esperar respuesta SSE
+    const respuestaBot = await promesaRespuesta;
 
-    // 5️⃣ Obtener mensajes de la conversación
-    const { messages } = await client.listMessages({
-      conversationId: conversation.id,
-    });
-
-    // 6️⃣ Extraer respuesta del bot (messages[0] es el más reciente = el bot)
-    let respuestaBot = "Sin respuesta";
-    const mensajeBot = messages.find((m) => m.userId !== client.user?.id) || messages[0];
-
-    if (mensajeBot?.payload?.text) {
-      respuestaBot = String(mensajeBot.payload.text);
+    if (!respuestaBot) {
+      return res.status(200).json({
+        respuesta: "⏳ El asistente está tardando, por favor repite tu pregunta.",
+        reintenta: true,
+      });
     }
 
-    // 7️⃣ Guardar en MongoDB
+    // 4️⃣ Guardar en MongoDB
     await HistorialConChatbot.findOneAndUpdate(
-      { usuario: req.userBDD._id },
+      { usuario: usuarioId },
       {
         $push: {
           mensajes: {
             $each: [
-              { rol: "usuario", contenido: mensaje },
+              { rol: "usuario",   contenido: mensaje      },
               { rol: "asistente", contenido: respuestaBot },
             ],
           },
         },
+        $set: { conversationId },
       },
       { upsert: true, new: true }
     );
 
-    res.status(200).json({ respuesta: respuestaBot });
+    return res.status(200).json({ respuesta: respuestaBot });
+
   } catch (error) {
-    console.error("Error chatbot:", error);
-    res.status(500).json({ msg: "Error interno", error: error.message });
+    console.error("❌ Error chatbot:", error);
+    return res.status(500).json({ msg: "Error interno", error: error.message });
   }
 };
 
-// 🟢 Obtener historial del usuario
+// ─── Historial ────────────────────────────────────────────────────────────────
 const obtenerHistorialChatbot = async (req, res) => {
   try {
-    const historial = await HistorialConChatbot.findOne({
-      usuario: req.userBDD._id,
-    });
-    res.status(200).json({ mensajes: historial?.mensajes || [] });
+    const historial = await HistorialConChatbot.findOne({ usuario: req.userBDD._id });
+    return res.status(200).json({ mensajes: historial?.mensajes || [] });
   } catch (error) {
-    res.status(500).json({ msg: "Error al obtener historial", error: error.message });
+    return res.status(500).json({ msg: "Error al obtener historial", error: error.message });
   }
 };
+
 
 const obtenerPerfilCompleto = async (req, res) => {
   try {
