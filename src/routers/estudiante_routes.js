@@ -2,7 +2,7 @@ import {Router} from 'express'
 import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, obtenerMisEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
     crearOrdenPayPal, getPayPalToken, capturarPagoPayPal, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
-    reportarUsuarioChat
+    reportarUsuarioChat, guardarMensajeBotpress
   } from '../controllers/estudiante_controllers.js'
 import {verificarTokenJWT, } from '../middlewares/JWT.js'
 import { perfilCompleto } from '../middlewares/perfilCompleto.js'
@@ -25,6 +25,7 @@ router.post('/perfil/chat', verificarTokenJWT, chatEstudiante);
 
 // Ruta para ver el historial de respuestas con el chatbot
 router.get('/perfil/chat/historial', verificarTokenJWT, obtenerHistorialChatbot);
+router.post("/perfil/chat/botpress-save", verificarTokenJWT, guardarMensajeBotpress);
 
 // Notificaciones
 router.get('/notificaciones', verificarTokenJWT, obtenerNotificaciones);

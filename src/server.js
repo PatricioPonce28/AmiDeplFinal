@@ -30,7 +30,7 @@ app.use(express.urlencoded({ extended: true }))
 
 // Configurar CORS usando variable de entorno
 const corsOptions = {
-  origin: process.env.URL_FRONTEND, // URL exacta del frontend
+  origin: process.env.URL_FRONTEND || 'http://localhost:5173', // URL exacta del frontend
   credentials: true,                // Permitir cookies/sesión
 }
 

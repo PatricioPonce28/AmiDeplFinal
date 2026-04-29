@@ -588,6 +588,47 @@ const obtenerHistorialChatbot = async (req, res) => {
   }
 };
 
+const guardarMensajeBotpress = async (req, res) => {
+  try {
+    const { mensaje, respuesta, timestamp } = req.body;
+    const usuarioId = req.userBDD._id; // 👈 tu middleware usa req.userBDD
+
+    if (!mensaje || !respuesta) {
+      return res.status(400).json({
+        msg: "Mensaje y respuesta son requeridos",
+      });
+    }
+
+    // Guarda usando tu modelo existente HistorialConChatbot
+    const historial = await HistorialConChatbot.findOneAndUpdate(
+      { usuario: usuarioId },
+      {
+        $push: {
+          mensajes: {
+            $each: [
+              { rol: "usuario", contenido: mensaje, fecha: timestamp || new Date() },
+              { rol: "asistente", contenido: respuesta, fecha: timestamp || new Date() },
+            ],
+          },
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(201).json({
+      msg: "Mensaje guardado correctamente",
+      data: historial,
+    });
+
+  } catch (error) {
+    console.error("Error al guardar mensaje de Botpress:", error);
+    res.status(500).json({
+      msg: "Error al guardar el mensaje",
+      error: error.message,
+    });
+  }
+};
+
 
 const obtenerPerfilCompleto = async (req, res) => {
   try {
@@ -1397,6 +1438,7 @@ export {
   eliminarFotoGaleria,
   reemplazarFotoGaleria,
   chatEstudiante,
+  guardarMensajeBotpress,
   obtenerPerfilCompleto,
   listarPotencialesMatches,
   seguirUsuario,
@@ -1420,3 +1462,4 @@ export {
   obtenerHistorialChatbot,
   verMisStrikes,
 };
+  
