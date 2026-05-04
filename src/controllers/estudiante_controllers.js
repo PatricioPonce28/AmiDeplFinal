@@ -245,6 +245,7 @@ const completarPerfil = async (req, res) => {
     const id = req.userBDD._id;
 
     const nombre = req.body.nombre?.trim();
+    const apellido = req.body.apellido?.trim();
     const biografia = req.body.biografia?.trim();
     let intereses = [];
       if (Array.isArray(req.body.intereses)) {
@@ -272,25 +273,6 @@ const completarPerfil = async (req, res) => {
       return res
         .status(400)
         .json({ msg: "Por favor, completa todos los campos obligatorios." });
-    }
-
-    // Validar nombre sin espacios
-    if (/\s/.test(nombre)) {
-      return res
-        .status(400)
-        .json({ msg: "El nombre no debe contener espacios." });
-    }
-
-    // Validar ciudad y país sin espacios
-    if (/\s/.test(ciudad)) {
-      return res
-        .status(400)
-        .json({ msg: "La ciudad no debe contener espacios." });
-    }
-    if (/\s/.test(pais)) {
-      return res
-        .status(400)
-        .json({ msg: "El país no debe contener espacios." });
     }
     
     // Validar mayoría de edad (18 años)
@@ -337,6 +319,7 @@ const completarPerfil = async (req, res) => {
     }
 
     usuario.nombre = nombre;
+    usuario.apellido = apellido || usuario.apellido; 
     usuario.biografia = biografia;
     const interesesExistentes = usuario.intereses || [];
     usuario.intereses = [...new Set([...interesesExistentes, ...intereses])];
