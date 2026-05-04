@@ -246,7 +246,12 @@ const completarPerfil = async (req, res) => {
 
     const nombre = req.body.nombre?.trim();
     const biografia = req.body.biografia?.trim();
-    const intereses = req.body.intereses?.split(",").map((i) => i.trim()) || [];
+    let intereses = [];
+      if (Array.isArray(req.body.intereses)) {
+        intereses = req.body.intereses.map((i) => i.trim()).filter(Boolean);
+      } else if (req.body.intereses) {
+        intereses = req.body.intereses.split(",").map((i) => i.trim()).filter(Boolean);
+      }
     const genero = req.body.genero?.toLowerCase();
     const orientacion = req.body.orientacion?.toLowerCase();
     const fechaNacimiento = req.body.fechaNacimiento;
@@ -287,14 +292,7 @@ const completarPerfil = async (req, res) => {
         .status(400)
         .json({ msg: "El país no debe contener espacios." });
     }
-
-    const interesInvalido = intereses.find((i) => /\s/.test(i));
-    if (interesInvalido) {
-      return res.status(400).json({
-        msg: `El interés "${interesInvalido}" no debe contener espacios. Separa los intereses por comas sin espacios. Ejemplo: futbol,musica,arte`,
-      });
-    }
-
+    
     // Validar mayoría de edad (18 años)
     const hoy = new Date();
     const nacimiento = new Date(fechaNacimiento);
@@ -340,7 +338,8 @@ const completarPerfil = async (req, res) => {
 
     usuario.nombre = nombre;
     usuario.biografia = biografia;
-    usuario.intereses = intereses;
+    const interesesExistentes = usuario.intereses || [];
+    usuario.intereses = [...new Set([...interesesExistentes, ...intereses])];
     usuario.genero = genero;
     usuario.orientacion = orientacion;
     usuario.fechaNacimiento = fechaNacimiento;
