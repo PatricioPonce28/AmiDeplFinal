@@ -14,6 +14,11 @@ const chatSchema = new mongoose.Schema({
     contenido: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
   }],
+   ultimaLectura: {
+    type: Map,
+    of: Date,
+    default: {}
+  },
   createdAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 

@@ -35,9 +35,7 @@ export const initSocket = (server) => {
   });
 
   io.on('connection', async (socket) => {
-    //console.log(`Usuario conectado: ${socket.user._id} (${socket.id})`);
-
-    socket.join(socket.user._id.toString());
+    
     // Unirse a salas de chats existentes
     socket.on('join:chat', async (chatId) => {
       try {

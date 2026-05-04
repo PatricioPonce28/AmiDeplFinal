@@ -16,30 +16,30 @@ import Aporte from "../models/Aporte.js";
 import crypto from "crypto";
 
 const validarHora = (hora) => {
-  if (!hora || typeof hora !== 'string') return false;
+  if (!hora || typeof hora !== "string") return false;
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
 };
 
 const validarFechaHoraEvento = (fecha, hora) => {
   if (!fecha || !hora) {
-    return 'La fecha y hora del evento son obligatorias.';
+    return "La fecha y hora del evento son obligatorias.";
   }
 
   if (!validarHora(hora)) {
-    return 'La hora debe tener el formato HH:mm válido.';
+    return "La hora debe tener el formato HH:mm válido.";
   }
 
   // Combinar fecha y hora como UTC-5 (Ecuador)
   const fechaHoraEvento = new Date(`${fecha}T${hora}:00-05:00`);
 
   if (Number.isNaN(fechaHoraEvento.getTime())) {
-    return 'Fecha o hora del evento inválida.';
+    return "Fecha o hora del evento inválida.";
   }
 
   const ahora = new Date();
 
   if (fechaHoraEvento <= ahora) {
-    return 'La fecha y hora del evento deben ser futuras.';
+    return "La fecha y hora del evento deben ser futuras.";
   }
 
   return null;
@@ -139,7 +139,6 @@ const recuperarPassword = async (req, res) => {
     return res.status(200).json({
       msg: "Revisa tu correo para recuperar tu contraseña",
     });
-
   } catch (error) {
     console.error("Error recuperando password:", error);
     return res.status(500).json({ msg: "Error enviando correo" });
@@ -250,9 +249,9 @@ const login = async (req, res) => {
         .json({ msg: "Lo sentimos, el password es incorrecto" });
     }
     const token = crearTokenJWT(userBDD._id, userBDD.rol);
-    userBDD.token = token;   // ← guardar en DB
-    await userBDD.save(); 
-    
+    userBDD.token = token; // ← guardar en DB
+    await userBDD.save();
+
     const { _id, nombre, apellido, email: userEmail, rol } = userBDD;
 
     return res.status(200).json({
@@ -397,7 +396,9 @@ const crearEvento = async (req, res) => {
       return res.status(400).json({ msg: "Todos los campos son obligatorios" });
     }
     if (!req.files?.imagen) {
-      return res.status(400).json({ msg: "La imagen del evento es obligatoria." });
+      return res
+        .status(400)
+        .json({ msg: "La imagen del evento es obligatoria." });
     }
     const errorValidacion = validarFechaHoraEvento(fecha, hora);
     if (errorValidacion) {
@@ -430,21 +431,24 @@ const crearEvento = async (req, res) => {
     await evento.save();
 
     const estudiantes = await users.find({ rol: "estudiante" }).select("_id");
-    const notificaciones = estudiantes.map((u) => ({
-      usuario: u._id,
-      tipo: "evento",
-      titulo: "Nuevo evento disponible",
-      mensaje: `El administrador creó un nuevo evento: ${titulo}`,
-      leido: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
-    if (notificaciones.length) {
-      await HistorialNotificacion.insertMany(notificaciones);
-    }
+
+const notificaciones = await HistorialNotificacion.insertMany(
+  estudiantes.map((u) => ({
+    usuario: u._id,
+    fromUser: req.userBDD._id,
+    tipo: "evento",
+    titulo: "Nuevo evento disponible",
+    mensaje: `El administrador creó un nuevo evento: ${titulo}`,
+    leido: false,
+  }))
+);
+
+notificaciones.forEach((n) => {
+  req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+});
     //Emitir a todos los clientes conectados
-    req.io.emit("evento_creado", { evento })
-    req.io.emit("notificacion_nueva")  // refresca el badge de notificaciones
+    req.io.emit("evento_creado", { evento });
+    
 
     res.status(201).json({ msg: "Evento creado correctamente", evento });
   } catch (error) {
@@ -464,9 +468,14 @@ const actualizarEvento = async (req, res) => {
       return res.status(404).json({ msg: "Evento no encontrado" });
     }
     if (fecha || hora) {
-      const fechaParaValidar = fecha ? fecha : evento.fecha.toISOString().split("T")[0];
+      const fechaParaValidar = fecha
+        ? fecha
+        : evento.fecha.toISOString().split("T")[0];
       const horaParaValidar = hora ? hora : evento.hora;
-      const errorValidacion = validarFechaHoraEvento(fechaParaValidar, horaParaValidar);
+      const errorValidacion = validarFechaHoraEvento(
+        fechaParaValidar,
+        horaParaValidar,
+      );
       if (errorValidacion) {
         return res.status(400).json({ msg: errorValidacion });
       }
@@ -489,11 +498,25 @@ const actualizarEvento = async (req, res) => {
     }
 
     await evento.save();
-     //Emitir actualización
-    req.io.emit("evento_actualizado", { evento })
-
+    //Emitir actualización
+    req.io.emit("evento_actualizado", { evento });
 
     res.status(200).json({ msg: "Evento actualizado correctamente", evento });
+    const asistentes = evento.asistentes ?? [];
+
+const notificaciones = await HistorialNotificacion.insertMany(
+  asistentes.map((usuarioId) => ({
+    usuario: usuarioId,
+    tipo: "evento",
+    titulo: "Evento actualizado",
+    mensaje: `El evento "${evento.titulo}" fue actualizado.`,
+    leido: false,
+  }))
+);
+
+notificaciones.forEach((n) => {
+  req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+});
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al actualizar evento" });
@@ -512,7 +535,7 @@ const obtenerEventosAdmin = async (req, res) => {
       ...evento,
       _id: evento._id.toString(),
     }));
-    req.io.emit("eventos_actualizados", { eventos }) // Emitir lista actualizada a admin
+    req.io.emit("eventos_actualizados", { eventos }); // Emitir lista actualizada a admin
     res.status(200).json(eventos);
   } catch (error) {
     console.error(error);
@@ -520,7 +543,7 @@ const obtenerEventosAdmin = async (req, res) => {
   }
 };
 
-const eliminarEvento = async (req, res) => {
+  const eliminarEvento = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -533,24 +556,37 @@ const eliminarEvento = async (req, res) => {
     evento.activo = false;
     await evento.save();
 
-    const asistentes = Array.isArray(evento.asistentes) ? evento.asistentes : [];
-    if (asistentes.length > 0) {
-      const notificaciones = asistentes.map((usuarioId) => ({
-        usuario: usuarioId,
-        fromUser: req.userBDD?._id || null,
-        tipo: 'evento',
-        titulo: 'Evento cancelado',
-        mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
-        leido: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-      await HistorialNotificacion.insertMany(notificaciones);
-    }
-     //Emitir eliminación
-    req.io.emit("evento_eliminado", { id })
+    const asistentes = Array.isArray(evento.asistentes)
+      ? evento.asistentes
+      : [];
 
-    res.status(200).json({ msg: "Evento eliminado (ocultado) correctamente" });
+    if (asistentes.length > 0) {
+
+      const notificaciones = await HistorialNotificacion.insertMany(
+        asistentes.map((usuarioId) => ({
+          usuario: usuarioId,
+          fromUser: req.userBDD?._id || null,
+          tipo: "evento",
+          titulo: "Evento cancelado",
+          mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
+          leido: false,
+        }))
+      );
+
+      // 🔥 EMITIR NOTIFICACIÓN REAL (sin refetch)
+       for (const n of notificaciones) {
+    req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+  }
+
+    }
+
+    // Emitir eliminación de evento (como ya haces)
+    req.io.emit("evento_eliminado", { id });
+
+    res.status(200).json({
+      msg: "Evento eliminado (ocultado) correctamente",
+    });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al eliminar evento" });
@@ -684,7 +720,9 @@ const eliminarMatchYChat = async (req, res) => {
   try {
     const usuario = req.userBDD;
     if (!usuario || usuario.rol !== "admin") {
-      return res.status(403).json({ msg: "Acceso denegado: solo administradores" });
+      return res
+        .status(403)
+        .json({ msg: "Acceso denegado: solo administradores" });
     }
 
     const { strikeId } = req.params;
@@ -695,7 +733,9 @@ const eliminarMatchYChat = async (req, res) => {
     const strike = await Strike.findById(strikeId);
     // ✅ Ya no se exige strike.chat para continuar
     if (!strike || !strike.usuarioReportado) {
-      return res.status(404).json({ msg: "Strike o datos asociados no encontrados" });
+      return res
+        .status(404)
+        .json({ msg: "Strike o datos asociados no encontrados" });
     }
 
     // ✅ Se elimina solo el match (sin tocar el chat)
@@ -720,7 +760,9 @@ const eliminarMatchYChat = async (req, res) => {
 
     // ✅ Se pasa strikeId como identificador del evento
     req.io.to(`user:${strike.de}`).emit("match_eliminado", { id: strikeId });
-    req.io.to(`user:${strike.usuarioReportado}`).emit("match_eliminado", { id: strikeId });
+    req.io
+      .to(`user:${strike.usuarioReportado}`)
+      .emit("match_eliminado", { id: strikeId });
 
     return res.status(200).json({
       msg: "Match eliminado con éxito",
@@ -746,10 +788,12 @@ const verTesoreria = async (req, res) => {
       totalRecaudado: totalAportes,
       totalMovimientos: tesoreria?.movimientos?.length ?? 0,
       movimientos: tesoreria?.movimientos ?? [],
-      aportes
+      aportes,
     });
   } catch (error) {
-    res.status(500).json({ msg: "Error al obtener tesorería", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Error al obtener tesorería", error: error.message });
   }
 };
 
@@ -772,7 +816,7 @@ const registrarGasto = async (req, res) => {
 
     if (tesoreria.saldoTotal < monto) {
       return res.status(400).json({
-        msg: `Saldo insuficiente. Disponible: $${tesoreria.saldoTotal}`
+        msg: `Saldo insuficiente. Disponible: $${tesoreria.saldoTotal}`,
       });
     }
 
@@ -780,17 +824,19 @@ const registrarGasto = async (req, res) => {
     tesoreria.movimientos.push({
       tipo: "gasto",
       monto,
-      razon: razon.trim()
+      razon: razon.trim(),
     });
 
     await tesoreria.save();
 
     res.status(200).json({
       msg: "Gasto registrado correctamente",
-      saldoActual: tesoreria.saldoTotal
+      saldoActual: tesoreria.saldoTotal,
     });
   } catch (error) {
-    res.status(500).json({ msg: "Error al registrar gasto", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Error al registrar gasto", error: error.message });
   }
 };
 
@@ -809,21 +855,23 @@ const ajustarSaldo = async (req, res) => {
     }
 
     const tipo = monto >= 0 ? "ingreso" : "gasto";
-    tesoreria.saldoTotal += monto; 
+    tesoreria.saldoTotal += monto;
     tesoreria.movimientos.push({
       tipo,
       monto: Math.abs(monto),
-      razon: razon.trim()
+      razon: razon.trim(),
     });
 
     await tesoreria.save();
 
     res.status(200).json({
       msg: "Saldo ajustado correctamente",
-      saldoActual: tesoreria.saldoTotal
+      saldoActual: tesoreria.saldoTotal,
     });
   } catch (error) {
-    res.status(500).json({ msg: "Error al ajustar saldo", error: error.message });
+    res
+      .status(500)
+      .json({ msg: "Error al ajustar saldo", error: error.message });
   }
 };
 
@@ -850,5 +898,5 @@ export {
   responderStrike,
   verTesoreria,
   registrarGasto,
-  ajustarSaldo
+  ajustarSaldo,
 };
