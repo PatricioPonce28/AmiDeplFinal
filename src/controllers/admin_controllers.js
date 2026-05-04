@@ -432,23 +432,22 @@ const crearEvento = async (req, res) => {
 
     const estudiantes = await users.find({ rol: "estudiante" }).select("_id");
 
-const notificaciones = await HistorialNotificacion.insertMany(
-  estudiantes.map((u) => ({
-    usuario: u._id,
-    fromUser: req.userBDD._id,
-    tipo: "evento",
-    titulo: "Nuevo evento disponible",
-    mensaje: `El administrador creó un nuevo evento: ${titulo}`,
-    leido: false,
-  }))
-);
+    const notificaciones = await HistorialNotificacion.insertMany(
+      estudiantes.map((u) => ({
+        usuario: u._id,
+        fromUser: req.userBDD._id,
+        tipo: "evento",
+        titulo: "Nuevo evento disponible",
+        mensaje: `El administrador creó un nuevo evento: ${titulo}`,
+        leido: false,
+      })),
+    );
 
-notificaciones.forEach((n) => {
-  req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
-});
+    notificaciones.forEach((n) => {
+      req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+    });
     //Emitir a todos los clientes conectados
     req.io.emit("evento_creado", { evento });
-    
 
     res.status(201).json({ msg: "Evento creado correctamente", evento });
   } catch (error) {
@@ -504,19 +503,19 @@ const actualizarEvento = async (req, res) => {
     res.status(200).json({ msg: "Evento actualizado correctamente", evento });
     const asistentes = evento.asistentes ?? [];
 
-const notificaciones = await HistorialNotificacion.insertMany(
-  asistentes.map((usuarioId) => ({
-    usuario: usuarioId,
-    tipo: "evento",
-    titulo: "Evento actualizado",
-    mensaje: `El evento "${evento.titulo}" fue actualizado.`,
-    leido: false,
-  }))
-);
+    const notificaciones = await HistorialNotificacion.insertMany(
+      asistentes.map((usuarioId) => ({
+        usuario: usuarioId,
+        tipo: "evento",
+        titulo: "Evento actualizado",
+        mensaje: `El evento "${evento.titulo}" fue actualizado.`,
+        leido: false,
+      })),
+    );
 
-notificaciones.forEach((n) => {
-  req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
-});
+    notificaciones.forEach((n) => {
+      req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al actualizar evento" });
@@ -543,7 +542,7 @@ const obtenerEventosAdmin = async (req, res) => {
   }
 };
 
-  const eliminarEvento = async (req, res) => {
+const eliminarEvento = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -561,7 +560,6 @@ const obtenerEventosAdmin = async (req, res) => {
       : [];
 
     if (asistentes.length > 0) {
-
       const notificaciones = await HistorialNotificacion.insertMany(
         asistentes.map((usuarioId) => ({
           usuario: usuarioId,
@@ -570,14 +568,13 @@ const obtenerEventosAdmin = async (req, res) => {
           titulo: "Evento cancelado",
           mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
           leido: false,
-        }))
+        })),
       );
 
       // 🔥 EMITIR NOTIFICACIÓN REAL (sin refetch)
-       for (const n of notificaciones) {
-    req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
-  }
-
+      for (const n of notificaciones) {
+        req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
+      }
     }
 
     // Emitir eliminación de evento (como ya haces)
@@ -586,7 +583,6 @@ const obtenerEventosAdmin = async (req, res) => {
     res.status(200).json({
       msg: "Evento eliminado (ocultado) correctamente",
     });
-
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al eliminar evento" });
@@ -657,16 +653,21 @@ const responderStrike = async (req, res) => {
     strike.fechaRespuesta = new Date();
     await strike.save();
     // responderStrike — notifica al estudiante afectado (revision)
-    req.io.emit("notificacion_nueva");
+    req.io.to(strike.de._id.toString()).emit("strike_respondido", {
+      strikeId: strike._id,
+    });
 
     // Crear notificación para el usuario que hizo el strike
-    await HistorialNotificacion.create({
+    const notif = await HistorialNotificacion.create({
       usuario: strike.de._id,
       fromUser: usuario._id,
       tipo: "respuesta_strike",
       titulo: "Respuesta del Equipo de Soporte",
       mensaje: `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${respuesta}"`,
     });
+    req.io
+      .to(strike.de._id.toString())
+      .emit("notificacion_nueva", notif.toObject());
 
     return res.status(200).json({
       msg: "Respuesta enviada exitosamente",
@@ -758,11 +759,40 @@ const eliminarMatchYChat = async (req, res) => {
     strike.status = "resuelto";
     await strike.save();
 
-    // ✅ Se pasa strikeId como identificador del evento
-    req.io.to(`user:${strike.de}`).emit("match_eliminado", { id: strikeId });
+    const notifDenunciante = await HistorialNotificacion.create({
+      usuario: strike.de,
+      fromUser: usuario._id,
+      tipo: "respuesta_strike",
+      titulo: "Respuesta del Equipo de Soporte",
+      mensaje:
+        "El equipo de Amikuna ha resuelto tu denuncia y eliminado el match con el usuario reportado.",
+    });
+
+    const notifReportado = await HistorialNotificacion.create({
+      usuario: strike.usuarioReportado,
+      fromUser: usuario._id,
+      tipo: "respuesta_strike",
+      titulo: "Aviso del Equipo de Soporte",
+      mensaje:
+        "El equipo de Amikuna ha eliminado tu match con un usuario debido a una denuncia.",
+    });
+
     req.io
-      .to(`user:${strike.usuarioReportado}`)
-      .emit("match_eliminado", { id: strikeId });
+      .to(strike.de.toString())
+      .emit("notificacion_nueva", notifDenunciante.toObject());
+    req.io
+      .to(strike.usuarioReportado.toString())
+      .emit("notificacion_nueva", notifReportado.toObject());
+
+    // ✅ Emite match_eliminado a ambos
+    req.io.to(strike.de.toString()).emit("match_eliminado", {
+      strikeId: strike._id.toString(),
+      matchId: strike.usuarioReportado.toString(),
+    });
+    req.io.to(strike.usuarioReportado.toString()).emit("match_eliminado", {
+      strikeId: strike._id.toString(), // ← para el admin
+      matchId: strike.de.toString(),
+    });
 
     return res.status(200).json({
       msg: "Match eliminado con éxito",

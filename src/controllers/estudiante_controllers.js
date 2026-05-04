@@ -707,7 +707,7 @@ const listarPotencialesMatches = async (req, res) => {
         Array.isArray(yo.siguiendo) &&
         yo.matches.some((id) => id.toString() === perfil._id.toString());
 
-        return !esMatch;
+      return !esMatch;
     });
 
     // Filtrar perfiles ya vistos
@@ -863,10 +863,9 @@ const seguirUsuario = async (req, res) => {
       if (huboMatch) {
         const chatCreado = await crearChatMatch(yoId, idSeguido, req.io);
         const chatId = chatCreado._id.toString();
-      
 
-      // --- BLOQUE UNIFICADO DE SOCKETS (Real-time) ---
-      if (req.io) {
+        // --- BLOQUE UNIFICADO DE SOCKETS (Real-time) ---
+        if (req.io) {
           const [yoPopulado, otroPopulado] = await Promise.all([
             users.findById(yoId).select("nombre apellido imagenPerfil _id"),
             users
@@ -1469,8 +1468,15 @@ const reportarUsuarioChat = async (req, res) => {
       titulo: "Nueva denuncia de usuario",
       mensaje: `El usuario con ID ${usuarioId} reportó al usuario con ID ${usuarioReportado} en el chat ${chat._id}`,
     });
-    // reportarUsuarioChat + enviarStrike — admin recibe notificación
-    req.io.emit("notificacion_strike");
+    const strikePopulado = await Strike.findById(nuevoStrike._id)
+      .populate("de", "nombre apellido email")
+      .populate("usuarioReportado", "nombre apellido email")
+      .populate("chat");
+
+    req.io
+      .to(admin._id.toString())
+      .emit("strike_nuevo", strikePopulado);
+
     return res
       .status(201)
       .json({ msg: "Denuncia enviada correctamente", strike: nuevoStrike });
@@ -1516,6 +1522,13 @@ const enviarStrike = async (req, res) => {
     });
 
     await nuevoStrike.save();
+    const strikePopulado = await Strike.findById(nuevoStrike._id)
+      .populate("de", "nombre apellido email")
+      .populate("usuarioReportado", "nombre apellido email");
+
+    req.io
+      .to(admin._id.toString())
+      .emit("strike_nuevo", strikePopulado);
 
     res.status(201).json({
       msg: `Tu ${tipo} ha sido enviada al administrador. Pronto revisará tu mensaje.`,
