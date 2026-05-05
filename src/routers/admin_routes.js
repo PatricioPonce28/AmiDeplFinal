@@ -57,7 +57,7 @@ router.post('/denuncias/:strikeId/eliminar-match-chat', verificarTokenJWT, elimi
 // Responder a un strike (crear respuesta y notificación)
 router.post('/responder-strike/:strikeId', verificarTokenJWT, responderStrike);
 
-// Rutas de la tesorería por los pagos de PayPla
+// Rutas de la tesorería por los pagos de PayPal
 router.get("/tesoreria", verificarTokenJWT, verTesoreria);
 router.post("/tesoreria/gasto", verificarTokenJWT, registrarGasto);
 router.post("/tesoreria/ajuste", verificarTokenJWT, ajustarSaldo);

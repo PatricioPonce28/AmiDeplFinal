@@ -635,7 +635,7 @@ const responderStrike = async (req, res) => {
     }
 
     // Buscar el strike
-    const strike = await Strike.findById(strikeId).populate("de", "_id");
+    const strike = await Strike.findById(strikeId);
     if (!strike) {
       return res.status(404).json({ msg: "Strike no encontrado" });
     }
@@ -647,26 +647,34 @@ const responderStrike = async (req, res) => {
         .json({ msg: "No puedes responder strikes de otros admins" });
     }
 
+    const usuarioQueReportoId = strike.de?.toString();
+    if (!usuarioQueReportoId) {
+      return res
+        .status(500)
+        .json({ msg: "No se puede notificar al estudiante porque falta el campo de origen" });
+    }
+
     // Actualizar el strike con la respuesta
     strike.respuesta = respuesta.trim();
     strike.respondido = true;
     strike.fechaRespuesta = new Date();
     await strike.save();
     // responderStrike — notifica al estudiante afectado (revision)
-    req.io.to(strike.de._id.toString()).emit("strike_respondido", {
+    req.io.to(usuarioQueReportoId).emit("strike_respondido", {
       strikeId: strike._id,
     });
 
     // Crear notificación para el usuario que hizo el strike
     const notif = await HistorialNotificacion.create({
-      usuario: strike.de._id,
+      usuario: usuarioQueReportoId,
       fromUser: usuario._id,
       tipo: "respuesta_strike",
       titulo: "Respuesta del Equipo de Soporte",
       mensaje: `El equipo de soporte de Amikuna ha respondido a tu ${strike.tipo}: "${respuesta}"`,
+
     });
     req.io
-      .to(strike.de._id.toString())
+      .to(usuarioQueReportoId)
       .emit("notificacion_nueva", notif.toObject());
 
     return res.status(200).json({
