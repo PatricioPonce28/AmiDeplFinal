@@ -321,8 +321,7 @@ const completarPerfil = async (req, res) => {
     usuario.nombre = nombre;
     usuario.apellido = apellido || usuario.apellido; 
     usuario.biografia = biografia;
-    const interesesExistentes = usuario.intereses || [];
-    usuario.intereses = [...new Set([...interesesExistentes, ...intereses])];
+    usuario.intereses = [...new Set(intereses)];
     usuario.genero = genero;
     usuario.orientacion = orientacion;
     usuario.fechaNacimiento = fechaNacimiento;
