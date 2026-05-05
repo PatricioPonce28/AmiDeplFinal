@@ -669,7 +669,6 @@ const listarPotencialesMatches = async (req, res) => {
     let filtroGenero = {};
     if (yo.genero === "hombre") filtroGenero.genero = "mujer";
     if (yo.genero === "mujer") filtroGenero.genero = "hombre";
-    if (yo.genero === "otro") filtroGenero.genero = "otro";
 
     // Buscar perfiles que cumplan los requisitos
     let perfiles = await users

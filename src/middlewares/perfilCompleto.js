@@ -1,7 +1,7 @@
 const perfilCompleto = (req, res, next) => {
   const u = req.userBDD;            
   const tieneFoto      = !!u.imagenPerfil;
-  const tieneGenero    = u.genero !== "otro";
+  const tieneGenero    = !!u.genero;
   const tieneBiografia = !!u.biografia?.trim();
   const tieneIntereses = Array.isArray(u.intereses) && u.intereses.length > 0;
   // AÑADIDO: Validación de ubicación

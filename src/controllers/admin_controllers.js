@@ -281,11 +281,9 @@ const perfil = (req, res) => {
     });
   }
 
-  if (rol === "estudiante") {
-    return res.status(200).json({
-      msg: `Bienvenido estudiante ${nombre} ${apellido}`,
-      perfil: { nombre, apellido, email, rol },
-    });
+    if (rol === "estudiante") {
+    const { password, token, __v, createdAt, updatedAt, ...resto } = req.userBDD.toObject();
+    return res.status(200).json(resto); // ← devuelve perfil completo
   }
 
   res.status(403).json({ msg: "Rol no autorizado" });
