@@ -558,12 +558,7 @@ const eliminarEvento = async (req, res) => {
       return res.status(404).json({ msg: "Evento no encontrado" });
     }
 
-    evento.activo = false;
-    await evento.save();
-
-    const asistentes = Array.isArray(evento.asistentes)
-      ? evento.asistentes
-      : [];
+    const asistentes = Array.isArray(evento.asistentes) ? evento.asistentes : [];
 
     if (asistentes.length > 0) {
       const notificaciones = await HistorialNotificacion.insertMany(
@@ -574,21 +569,20 @@ const eliminarEvento = async (req, res) => {
           titulo: "Evento cancelado",
           mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
           leido: false,
-        })),
+        }))
       );
 
-      // 🔥 EMITIR NOTIFICACIÓN REAL (sin refetch)
       for (const n of notificaciones) {
         req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
       }
     }
 
-    // Emitir eliminación de evento (como ya haces)
+    // Eliminar definitivamente de la BDD
+    await Evento.findByIdAndDelete(id);
+
     req.io.emit("evento_eliminado", { id });
 
-    res.status(200).json({
-      msg: "Evento eliminado (ocultado) correctamente",
-    });
+    res.status(200).json({ msg: "Evento eliminado correctamente" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al eliminar evento" });
