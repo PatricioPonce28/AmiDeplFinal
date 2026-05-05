@@ -627,6 +627,10 @@ const responderStrike = async (req, res) => {
       });
     }
 
+    if (strike.respondido) {
+      return res.status(400).json({ msg: "Este strike ya fue respondido" });
+    }
+    
     // Validar campos obligatorios
     if (!strikeId || !respuesta || respuesta.trim().length < 5) {
       return res.status(400).json({
