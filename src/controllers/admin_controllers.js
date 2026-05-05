@@ -15,37 +15,45 @@ import Tesoreria from "../models/Tesoreria.js";
 import Aporte from "../models/Aporte.js";
 import crypto from "crypto";
 
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const ZONA_ECUADOR = 'America/Guayaquil';
+
 const validarHora = (hora) => {
-  if (!hora || typeof hora !== "string") return false;
+  if (!hora || typeof hora !== 'string') return false;
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
 };
 
 const validarFechaHoraEvento = (fecha, hora) => {
   if (!fecha || !hora) {
-    return "La fecha y hora del evento son obligatorias.";
+    return 'La fecha y hora del evento son obligatorias.';
   }
 
   if (!validarHora(hora)) {
-    return "La hora debe tener el formato HH:mm válido.";
+    return 'La hora debe tener el formato HH:mm válido.';
   }
 
-  // Combinar fecha y hora como UTC-5 (Ecuador)
-  const fechaHoraEvento = new Date(`${fecha}T${hora}:00-05:00`);
+  // Crear la fecha del evento en zona horaria de Ecuador
+  const fechaHoraEvento = dayjs.tz(`${fecha} ${hora}`, ZONA_ECUADOR);
 
-  if (Number.isNaN(fechaHoraEvento.getTime())) {
-    return "Fecha o hora del evento inválida.";
+  if (!fechaHoraEvento.isValid()) {
+    return 'Fecha o hora del evento inválida.';
   }
 
-  const ahora = new Date();
+  // Momento actual en Ecuador
+  const ahora = dayjs().tz(ZONA_ECUADOR);
 
-  if (fechaHoraEvento <= ahora) {
-    return "La fecha y hora del evento deben ser futuras.";
+  if (fechaHoraEvento.isBefore(ahora) || fechaHoraEvento.isSame(ahora)) {
+    return 'La fecha y hora del evento deben ser futuras.';
   }
 
   return null;
 };
-
-// registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
 
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
@@ -550,12 +558,7 @@ const eliminarEvento = async (req, res) => {
       return res.status(404).json({ msg: "Evento no encontrado" });
     }
 
-    evento.activo = false;
-    await evento.save();
-
-    const asistentes = Array.isArray(evento.asistentes)
-      ? evento.asistentes
-      : [];
+    const asistentes = Array.isArray(evento.asistentes) ? evento.asistentes : [];
 
     if (asistentes.length > 0) {
       const notificaciones = await HistorialNotificacion.insertMany(
@@ -566,21 +569,20 @@ const eliminarEvento = async (req, res) => {
           titulo: "Evento cancelado",
           mensaje: `El evento "${evento.titulo}" ha sido cancelado.`,
           leido: false,
-        })),
+        }))
       );
 
-      // 🔥 EMITIR NOTIFICACIÓN REAL (sin refetch)
       for (const n of notificaciones) {
         req.io.to(n.usuario.toString()).emit("notificacion_nueva", n);
       }
     }
 
-    // Emitir eliminación de evento (como ya haces)
+    // Eliminar definitivamente de la BDD
+    await Evento.findByIdAndDelete(id);
+
     req.io.emit("evento_eliminado", { id });
 
-    res.status(200).json({
-      msg: "Evento eliminado (ocultado) correctamente",
-    });
+    res.status(200).json({ msg: "Evento eliminado correctamente" });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Error al eliminar evento" });
