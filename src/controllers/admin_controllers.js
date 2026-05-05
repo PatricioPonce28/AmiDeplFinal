@@ -15,37 +15,45 @@ import Tesoreria from "../models/Tesoreria.js";
 import Aporte from "../models/Aporte.js";
 import crypto from "crypto";
 
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const ZONA_ECUADOR = 'America/Guayaquil';
+
 const validarHora = (hora) => {
-  if (!hora || typeof hora !== "string") return false;
+  if (!hora || typeof hora !== 'string') return false;
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(hora);
 };
 
 const validarFechaHoraEvento = (fecha, hora) => {
   if (!fecha || !hora) {
-    return "La fecha y hora del evento son obligatorias.";
+    return 'La fecha y hora del evento son obligatorias.';
   }
 
   if (!validarHora(hora)) {
-    return "La hora debe tener el formato HH:mm válido.";
+    return 'La hora debe tener el formato HH:mm válido.';
   }
 
-  // Combinar fecha y hora como UTC-5 (Ecuador)
-  const fechaHoraEvento = new Date(`${fecha}T${hora}:00-05:00`);
+  // Crear la fecha del evento en zona horaria de Ecuador
+  const fechaHoraEvento = dayjs.tz(`${fecha} ${hora}`, ZONA_ECUADOR);
 
-  if (Number.isNaN(fechaHoraEvento.getTime())) {
-    return "Fecha o hora del evento inválida.";
+  if (!fechaHoraEvento.isValid()) {
+    return 'Fecha o hora del evento inválida.';
   }
 
-  const ahora = new Date();
+  // Momento actual en Ecuador
+  const ahora = dayjs().tz(ZONA_ECUADOR);
 
-  if (fechaHoraEvento <= ahora) {
-    return "La fecha y hora del evento deben ser futuras.";
+  if (fechaHoraEvento.isBefore(ahora) || fechaHoraEvento.isSame(ahora)) {
+    return 'La fecha y hora del evento deben ser futuras.';
   }
 
   return null;
 };
-
-// registro para que supabase use su sistema de correo en lugar del nuestro, pero manteniendo la lógica de creación de usuario en MongoDB y el token personalizado.
 
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
