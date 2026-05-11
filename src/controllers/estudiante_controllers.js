@@ -727,159 +727,185 @@ const seguirUsuario = async (req, res) => {
 
     const yaLoSigo = yo.siguiendo.some((id) => id.toString() === idSeguido);
 
+    if (yaLoSigo) {
+      return res.status(400).json({ msg: "Ya sigues a este usuario" });
+    }
+
     const yaMeSigue = otro.siguiendo.some(
       (id) => id.toString() === yoId.toString(),
     );
 
     let huboMatch = false;
 
-    if (yaLoSigo) {
-      // --- Lógica para dejar de seguir ---
-      yo.siguiendo.pull(idSeguido);
-      otro.seguidores.pull(yoId);
-      yo.matches.pull(idSeguido);
-      otro.matches.pull(yoId);
-    } else {
-      // --- Lógica para seguir ---
-      if (yaMeSigue) {
-        huboMatch = true;
+    if (yaMeSigue) {
+      huboMatch = true;
+    }
+
+    yo.siguiendo.push(idSeguido);
+    otro.seguidores.push(yoId);
+
+    if (!yo.perfilesVistos.some((id) => id.toString() === idSeguido)) {
+      yo.perfilesVistos.push(idSeguido);
+    }
+
+    if (!yaMeSigue) {
+      const notificaciones = await HistorialNotificacion.insertMany([
+        {
+          usuario: idSeguido,
+          fromUser: yoId,
+          tipo: "seguidor",
+          titulo: "Tienes un nuevo seguidor",
+          mensaje: `${yo.nombre} ${yo.apellido ?? ""} te está siguiendo.`,
+          leido: false,
+        },
+      ]);
+
+      for (const n of notificaciones) {
+        req.io
+          .to(n.usuario.toString())
+          .emit("notificacion_nueva", n.toObject());
+      }
+    }
+
+    // --- Sistema de matches automáticos ---
+
+    if (huboMatch) {
+      if (!yo.matches.some((id) => id.toString() === idSeguido)) {
+        yo.matches.push(idSeguido);
       }
 
-      yo.siguiendo.push(idSeguido);
-      otro.seguidores.push(yoId);
-
-      if (!yo.perfilesVistos.some((id) => id.toString() === idSeguido)) {
-        yo.perfilesVistos.push(idSeguido);
+      if (!otro.matches.some((id) => id.toString() === yoId.toString())) {
+        otro.matches.push(yoId);
       }
 
-      if (!yaMeSigue) {
-        const notificaciones = await HistorialNotificacion.insertMany([
-          {
-            usuario: idSeguido,
-            fromUser: yoId,
-            tipo: "seguidor",
-            titulo: "Tienes un nuevo seguidor",
-            mensaje: `${yo.nombre} ${yo.apellido ?? ""} te está siguiendo.`,
-            leido: false,
-          },
+      await HistorialNotificacion.updateMany(
+        {
+          usuario: yoId,
+          fromUser: idSeguido,
+          tipo: "seguidor",
+          leido: false,
+        },
+        { leido: true },
+      );
+
+      await HistorialNotificacion.updateMany(
+        {
+          usuario: idSeguido,
+          fromUser: yoId,
+          tipo: "seguidor",
+          leido: false,
+        },
+        { leido: true },
+      );
+
+      const notificaciones = await HistorialNotificacion.insertMany([
+        {
+          usuario: yoId,
+          fromUser: idSeguido,
+          tipo: "match",
+          titulo: "¡Nuevo match!",
+          mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? "alguien"}.`,
+          leido: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          usuario: idSeguido,
+          fromUser: yoId,
+          tipo: "match",
+          titulo: "¡Nuevo match!",
+          mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? "alguien"}.`,
+          leido: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      for (const n of notificaciones) {
+        req.io
+          .to(n.usuario.toString())
+          .emit("notificacion_nueva", n.toObject());
+      }
+    }
+
+    await Promise.all([yo.save(), otro.save()]);
+
+    if (huboMatch) {
+      const chatCreado = await crearChatMatch(yoId, idSeguido, req.io);
+      const chatId = chatCreado._id.toString();
+
+      if (req.io) {
+        const [yoPopulado, otroPopulado] = await Promise.all([
+          users.findById(yoId).select("nombre apellido imagenPerfil _id"),
+          users
+            .findById(idSeguido)
+            .select("nombre apellido imagenPerfil _id"),
         ]);
 
-        for (const n of notificaciones) {
-          req.io
-            .to(n.usuario.toString())
-            .emit("notificacion_nueva", n.toObject());
-        }
-      }
+        req.io.to(yoId.toString()).emit("nuevo_match", {
+          ...otroPopulado.toObject(),
+          chatId,
+        });
 
-      // --- Sistema de matches automáticos ---
+        req.io.to(idSeguido.toString()).emit("nuevo_match", {
+          ...yoPopulado.toObject(),
+          chatId,
+        });
 
-      if (huboMatch) {
-        // 🧠 0. GUARDAR MATCH REAL EN DB (FALTABA ESTO)
-        if (!yo.matches.some((id) => id.toString() === idSeguido)) {
-          yo.matches.push(idSeguido);
-        }
-
-        if (!otro.matches.some((id) => id.toString() === yoId.toString())) {
-          otro.matches.push(yoId);
-        }
-
-        // 🧹 1. LIMPIAR notificaciones "seguidor"
-        await HistorialNotificacion.updateMany(
-          {
-            usuario: yoId,
-            fromUser: idSeguido,
-            tipo: "seguidor",
-            leido: false,
-          },
-          { leido: true },
-        );
-
-        await HistorialNotificacion.updateMany(
-          {
-            usuario: idSeguido,
-            fromUser: yoId,
-            tipo: "seguidor",
-            leido: false,
-          },
-          { leido: true },
-        );
-
-        // 🔥 2. CREAR NOTIFICACIONES DE MATCH
-        const notificaciones = await HistorialNotificacion.insertMany([
-          {
-            usuario: yoId,
-            fromUser: idSeguido,
-            tipo: "match",
-            titulo: "¡Nuevo match!",
-            mensaje: `¡Felicitaciones! Hiciste match con ${otro.nombre ?? "alguien"}.`,
-            leido: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-          {
-            usuario: idSeguido,
-            fromUser: yoId,
-            tipo: "match",
-            titulo: "¡Nuevo match!",
-            mensaje: `¡Felicitaciones! Hiciste match con ${yo.nombre ?? "alguien"}.`,
-            leido: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ]);
-
-        // 🚀 3. SOCKET
-        for (const n of notificaciones) {
-          req.io
-            .to(n.usuario.toString())
-            .emit("notificacion_nueva", n.toObject());
-        }
-      }
-
-      // Guardado final en DB IMPORTANTE
-      await Promise.all([yo.save(), otro.save()]);
-
-      // Crear el chat después de avisar el match
-      if (huboMatch) {
-        const chatCreado = await crearChatMatch(yoId, idSeguido, req.io);
-        const chatId = chatCreado._id.toString();
-
-        // --- BLOQUE UNIFICADO DE SOCKETS (Real-time) ---
-        if (req.io) {
-          const [yoPopulado, otroPopulado] = await Promise.all([
-            users.findById(yoId).select("nombre apellido imagenPerfil _id"),
-            users
-              .findById(idSeguido)
-              .select("nombre apellido imagenPerfil _id"),
-          ]);
-
-          req.io.to(yoId.toString()).emit("nuevo_match", {
-            ...otroPopulado.toObject(),
-            chatId,
-          });
-
-          req.io.to(idSeguido.toString()).emit("nuevo_match", {
-            ...yoPopulado.toObject(),
-            chatId,
-          });
-
-          req.io.to(yoId.toString()).emit("social_update");
-          req.io.to(idSeguido.toString()).emit("social_update");
-        }
+        req.io.to(yoId.toString()).emit("social_update");
+        req.io.to(idSeguido.toString()).emit("social_update");
       }
     }
 
     return res.status(200).json({
-      msg: yaLoSigo
-        ? "Has dejado de seguir"
-        : huboMatch
-          ? "¡Match! Ahora pueden chatear"
-          : "Ahora sigues a este usuario",
+      msg: huboMatch
+        ? "¡Match! Ahora pueden chatear"
+        : "Ahora sigues a este usuario",
       siguiendo: yo.siguiendo.length,
       huboMatch,
     });
   } catch (error) {
     console.error("Error en seguirUsuario:", error);
+    return res.status(500).json({ msg: "Error interno del servidor" });
+  }
+};
+
+const noSeguirPerfil = async (req, res) => {
+  try {
+    const yoId = req.userBDD._id;
+    const { idSeguido } = req.params;
+
+    if (yoId.toString() === idSeguido) {
+      return res.status(400).json({ msg: "No puedes marcarte a ti mismo" });
+    }
+
+    const [yo, otro] = await Promise.all([
+      users.findById(yoId),
+      users.findById(idSeguido),
+    ]);
+
+    if (!otro) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    const yaLoSigo = yo.siguiendo.some((id) => id.toString() === idSeguido);
+    if (yaLoSigo) {
+      return res.status(400).json({
+        msg: "Ya sigues a este usuario. Si quieres dejar de seguirlo, usa el endpoint de dejar-de-seguir",
+      });
+    }
+
+    if (!yo.perfilesVistos.some((id) => id.toString() === idSeguido)) {
+      yo.perfilesVistos.push(idSeguido);
+      await yo.save();
+    }
+
+    return res.status(200).json({
+      msg: "Usuario marcado como no seguir",
+      perfilesVistos: yo.perfilesVistos.length,
+    });
+  } catch (error) {
+    console.error("Error en noSeguirPerfil:", error);
     return res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
@@ -1548,6 +1574,7 @@ export {
   obtenerPerfilCompleto,
   listarPotencialesMatches,
   seguirUsuario,
+  noSeguirPerfil,
   listarMatches,
   obtenerEventos,
   obtenerMisEventos,

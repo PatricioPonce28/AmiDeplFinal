@@ -1,5 +1,5 @@
 import {Router} from 'express'
-import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, listarMatches, obtenerPerfilCompleto, 
+import { completarPerfil, agregarFotosGaleria, eliminarFotoGaleria, reemplazarFotoGaleria, chatEstudiante,  listarPotencialesMatches, seguirUsuario, noSeguirPerfil, listarMatches, obtenerPerfilCompleto, 
     obtenerEventos, obtenerMisEventos, confirmarAsistencia, rechazarAsistencia, obtenerNotificaciones, marcarNotificacionLeida, marcarNotificacionLeidaPorStrike, logout, enviarMensaje, obtenerMensajes,
     crearOrdenPayPal, getPayPalToken, capturarPagoPayPal, iniciarChat, enviarStrike, obtenerHistorialChatbot, verMisStrikes,
     reportarUsuarioChat, guardarMensajeBotpress
@@ -50,6 +50,7 @@ router.post("/no-asistir/:idEvento", verificarTokenJWT, rechazarAsistencia);
 // Probar Estos 3 endpoitns cuando el Jhonn me siga
 // Endpoint clave y genera el match
 router.post("/seguir/:idSeguido", verificarTokenJWT, perfilCompleto, injectIO, seguirUsuario);
+router.post("/no-seguir/:idSeguido", verificarTokenJWT, perfilCompleto, noSeguirPerfil);
 
 // Listar Matches
 router.get("/listarmatches", verificarTokenJWT, perfilCompleto, listarMatches);
