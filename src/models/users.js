@@ -27,11 +27,9 @@ const userSchema = new Schema({
   },
   imagenPerfil: {
     type: String, 
-    default: ''
   },
   imagenesGaleria: {
     type: [String], 
-    default: []
   },
   biografia: {
     type: String,
@@ -39,12 +37,11 @@ const userSchema = new Schema({
     maxlength: 300
   },
   ubicacion: {
-    ciudad: { type: String, default: '' },
-    pais: { type: String, default: '' }
+    ciudad: { type: String },
+    pais: { type: String }
   },
   intereses: {
-    type: [String],
-    default: []
+    type: [String]
   },
   activo: {
     type: Boolean,
@@ -75,13 +72,11 @@ const userSchema = new Schema({
   },
   genero: {
     type: String,
-    enum: ['hombre', 'mujer', 'otro'],
-    default: 'otro'
+    enum: ['hombre', 'mujer', 'otro']
   },
   orientacion: {
     type: String,
-    enum: ['heterosexual', 'homosexual', 'bisexual', 'otro'],
-    default: 'otro'
+    enum: ['heterosexual', 'homosexual', 'bisexual', 'otro']
   },
   confirmEmail: {
     type: Boolean,
