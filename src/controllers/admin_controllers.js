@@ -627,10 +627,6 @@ const responderStrike = async (req, res) => {
       });
     }
 
-    if (strike.respondido) {
-      return res.status(400).json({ msg: "Este strike ya fue respondido" });
-    }
-    
     // Validar campos obligatorios
     if (!strikeId || !respuesta || respuesta.trim().length < 5) {
       return res.status(400).json({
@@ -642,6 +638,10 @@ const responderStrike = async (req, res) => {
     const strike = await Strike.findById(strikeId);
     if (!strike) {
       return res.status(404).json({ msg: "Strike no encontrado" });
+    }
+
+    if (strike.respondido) {
+      return res.status(400).json({ msg: "Este strike ya fue respondido" });
     }
 
     // Verificar que el strike va dirigido al admin actual

@@ -54,7 +54,6 @@ router.post("/no-seguir/:idSeguido", verificarTokenJWT, perfilCompleto, noSeguir
 
 // Listar Matches
 router.get("/listarmatches", verificarTokenJWT, perfilCompleto, listarMatches);
-
 router.post('/chat-con-match/:otroUserId', verificarTokenJWT, injectIO, iniciarChat );
 
 // Enviar mensaje
