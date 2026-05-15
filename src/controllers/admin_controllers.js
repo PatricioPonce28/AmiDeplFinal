@@ -55,12 +55,32 @@ const validarFechaHoraEvento = (fecha, hora) => {
   return null;
 };
 
+const validarDominioEmail = (email) => {
+  const dominiosNoPermitidos = [
+    'outlook.com',
+    'outlook.es',
+    'hotmail.com',
+    'hotmail.es',
+    'live.com',
+    'msn.com',
+  ];
+
+  const dominio = email?.split('@')[1]?.toLowerCase();
+  return dominiosNoPermitidos.includes(dominio);
+};
+
 const registro = async (req, res) => {
   const { nombre, apellido, email, password, confirmPassword } = req.body;
 
   // Validaciones — igual que antes
   if ([nombre, apellido, email, password, confirmPassword].includes("")) {
     return res.status(400).json({ msg: "Todos los campos son obligatorios" });
+  }
+
+  if (validarDominioEmail(email)) {
+    return res.status(400).json({
+      msg: "No se permiten correos @outlook, @hotmail ni dominios similares para registro.",
+    });
   }
 
   const verificarEmailBDD = await users.findOne({ email });
